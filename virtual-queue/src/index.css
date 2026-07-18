@@ -1,0 +1,167 @@
+@import 'tailwindcss';
+@import '@heroui/react/styles';
+
+/*
+ * Violet accent palette — shared across light and dark themes.
+ * HeroUI components using --accent adopt this automatically.
+ */
+:root,
+.dark {
+  --accent: oklch(0.585 0.233 296);
+  --accent-foreground: oklch(0.98 0.005 296);
+  --accent-hover: oklch(0.52 0.24 296);
+  --accent-soft: color-mix(in oklab, oklch(0.585 0.233 296) 14%, transparent);
+  --accent-soft-foreground: oklch(0.44 0.2 296);
+  --accent-soft-hover: color-mix(in oklab, oklch(0.585 0.233 296) 20%, transparent);
+  --focus: oklch(0.585 0.233 296);
+}
+
+/* Light theme: warmer background + visible field borders */
+:root:not(.dark) {
+  color-scheme: light;
+
+  --background: oklch(0.972 0.003 290);
+  --field-background: oklch(0.985 0.002 290);
+  --field-border: oklch(0.88 0.005 290);
+  --field-border-width: 1px;
+  --field-border-hover: oklch(0.77 0.01 290);
+  --field-border-focus: oklch(0.585 0.233 296);
+  --field-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+/* Dark theme: slightly brighter accent for contrast on dark surfaces */
+html.dark,
+.dark,
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --accent: oklch(0.65 0.22 296);
+  --accent-hover: oklch(0.58 0.23 296);
+  --accent-soft: color-mix(in oklab, oklch(0.65 0.22 296) 18%, transparent);
+  --accent-soft-foreground: oklch(0.78 0.16 296);
+  --accent-soft-hover: color-mix(in oklab, oklch(0.65 0.22 296) 24%, transparent);
+  --focus: oklch(0.65 0.22 296);
+
+  /* Fields must be lighter than card surface (surface ≈ 21% lightness) */
+  --field-background: oklch(0.31 0.012 296);
+  --field-border: oklch(0.44 0.025 296);
+  --field-border-width: 1px;
+  --field-border-hover: oklch(0.52 0.03 296);
+  --field-border-focus: oklch(0.65 0.22 296);
+  --field-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --default: oklch(0.29 0.01 296);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family:
+    'Inter',
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: var(--foreground);
+  background-attachment: fixed;
+}
+
+html:not(.dark) body {
+  background:
+    radial-gradient(55rem 55rem at 105% -5%, oklch(0.585 0.233 296 / 0.09), transparent 60%),
+    radial-gradient(45rem 45rem at -5% 105%, oklch(0.72 0.18 320 / 0.07), transparent 55%),
+    oklch(0.972 0.003 290);
+}
+
+html.dark body {
+  background:
+    radial-gradient(55rem 55rem at 105% -5%, oklch(0.585 0.233 296 / 0.18), transparent 60%),
+    radial-gradient(45rem 45rem at -5% 105%, oklch(0.72 0.18 320 / 0.12), transparent 55%),
+    oklch(0.12 0.008 290);
+}
+
+/* Auth forms: extra contrast for inputs and checkbox on card surfaces */
+html.dark .auth-form,
+.dark .auth-form,
+[data-theme='dark'] .auth-form {
+  --field-background: oklch(0.1858 0.014 296)
+}
+
+/*
+ * Hallmark · editorial · utilitarian tone · violet accent (hue 296)
+ * Typography: Cabinet Grotesk (display) + Geist (body) — sans-serif pair
+ * First Hallmark run — no diversification constraint.
+ */
+:root {
+  --font-display: "Cabinet Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Geist", ui-sans-serif, system-ui, sans-serif;
+
+  --text-xs: 0.64rem;
+  --text-sm: 0.8rem;
+  --text-base: 1rem;
+  --text-md: 1.25rem;
+  --text-lg: 1.5625rem;
+  --text-xl: 1.9531rem;
+  --text-2xl: 2.4414rem;
+  --text-3xl: 3.0518rem;
+  --text-display: clamp(2.5rem, 4vw + 1rem, 4.5rem);
+  --text-display-s: clamp(2rem, 3vw + 0.75rem, 3.25rem);
+
+  --space-3xs: 0.25rem;
+  --space-2xs: 0.5rem;
+  --space-xs: 0.75rem;
+  --space-sm: 1rem;
+  --space-md: 1.5rem;
+  --space-lg: 2rem;
+  --space-xl: 3rem;
+  --space-2xl: 4.5rem;
+  --space-3xl: 7rem;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-short: 220ms;
+  --dur-medium: 400ms;
+
+  --radius-card: 0.75rem;
+  --radius-pill: 9999px;
+  --radius-input: 0.5rem;
+
+  --color-paper: oklch(0.972 0.003 290);
+  --color-paper-2: oklch(0.93 0.005 290);
+  --color-ink: oklch(0.18 0.01 290);
+  --color-ink-2: oklch(0.40 0.008 290);
+  --color-rule: oklch(0.88 0.005 290);
+  --color-accent: oklch(0.585 0.233 296);
+  --color-accent-ink: oklch(0.98 0.005 296);
+  --color-focus: oklch(0.585 0.233 296);
+}
+
+html.dark {
+  --font-display: "Cabinet Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Geist", ui-sans-serif, system-ui, sans-serif;
+
+  --color-paper: oklch(0.14 0.008 290);
+  --color-paper-2: oklch(0.20 0.010 290);
+  --color-ink: oklch(0.94 0.006 290);
+  --color-ink-2: oklch(0.72 0.006 290);
+  --color-rule: oklch(0.30 0.008 290);
+  --color-accent: oklch(0.65 0.22 296);
+  --color-accent-ink: oklch(0.14 0.008 296);
+  --color-focus: oklch(0.65 0.22 296);
+}
+
+body {
+  font-family: var(--font-body);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+}

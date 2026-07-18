@@ -1,0 +1,35 @@
+name: virtual_queue_mobile
+description: Cliente móvil y Wear OS para Virtual Queue.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  dio: ^5.7.0
+  stomp_dart_client: ^3.0.1
+  web_socket_channel: ^3.0.0
+  firebase_core: ^3.0.0
+  firebase_messaging: ^15.0.0
+  flutter_local_notifications: ^17.0.0
+  flutter_riverpod: ^2.6.0
+  go_router: ^14.0.0
+  wear_plus: ^1.1.0
+  flutter_wear_os_connectivity: ^1.0.0
+  flutter_secure_storage: ^9.2.4
+  crypto: ^3.0.0
+  local_auth: ^2.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+  # Entry point alterno para el widget web de estadísticas embebido en React.
+  # flutter build web -t lib/main_stats.dart
