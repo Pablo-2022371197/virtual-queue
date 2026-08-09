@@ -1,22 +1,24 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { usePlaces } from './usePlaces'
-import { searchPlaces } from '../lib/searchPlaces'
 
 export function useSearchPlaces() {
-  const placesQuery = usePlaces()
   const [query, setQuery] = useState('')
+  const [category, setCategory] = useState<string | undefined>()
 
-  const results = useMemo(() => {
-    if (!placesQuery.data) {
-      return []
-    }
-    return searchPlaces(placesQuery.data, query)
-  }, [placesQuery.data, query])
+  const placesQuery = usePlaces({
+    query: query.length >= 2 ? query : undefined,
+    category,
+    size: 20,
+  })
+
+  const results = placesQuery.data?.content ?? []
 
   return {
     ...placesQuery,
     query,
     setQuery,
+    category,
+    setCategory,
     results,
   }
 }

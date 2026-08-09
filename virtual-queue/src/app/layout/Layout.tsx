@@ -1,13 +1,11 @@
-import { Navigate, Outlet } from 'react-router-dom'
+import { Outlet } from 'react-router-dom'
 import { AppSidebar } from './AppSidebar'
 import { UserMenu } from './UserMenu'
-import { isAuthenticated } from '../../lib/auth'
 import { siteConfig } from '../../lib/siteConfig'
+import { useQueueSocket } from '../../shared/realtime/useQueueSocket'
 
 export function Layout() {
-  if (!isAuthenticated()) {
-    return <Navigate to="/login" replace />
-  }
+  useQueueSocket()
 
   return (
     <div className="min-h-screen">

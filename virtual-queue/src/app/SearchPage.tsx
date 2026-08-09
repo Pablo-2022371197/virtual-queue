@@ -16,7 +16,6 @@ export default function SearchPage() {
         </p>
       </header>
 
-      {/* Standalone Input (primitive) — no TextField wrapper needed when there's no label */}
       <Input
         aria-label="Buscar establecimientos"
         placeholder="Buscar por nombre, dirección o categoría…"
@@ -39,11 +38,11 @@ export default function SearchPage() {
         </div>
       )}
 
-      {!isLoading && !isError && results.length === 0 && query.length > 0 && (
+      {!isLoading && !isError && results.length === 0 && query.length >= 2 && (
         <Card variant="secondary">
           <Card.Content className="py-12 text-center text-sm text-muted">
             No se encontraron resultados para{' '}
-            <span className="font-medium text-foreground">"{query}"</span>.
+            <span className="font-medium text-foreground">&ldquo;{query}&rdquo;</span>.
           </Card.Content>
         </Card>
       )}
@@ -62,6 +61,11 @@ export default function SearchPage() {
               </Card.Header>
               <Card.Content>
                 <p className="text-sm text-muted">{place.address}</p>
+                {place.description && (
+                  <p className="mt-2 text-xs text-muted line-clamp-2">
+                    {place.description}
+                  </p>
+                )}
               </Card.Content>
               <Card.Footer>
                 <Link to={`/place/${place.id}/queue`} className="w-full">

@@ -1,0 +1,340 @@
+openapi: 3.0.3
+info:
+  title: Virtual Queue API
+  version: 0.1.0
+  description: API para gestión de filas virtuales, turnos y notificaciones.
+
+servers:
+  - url: http://localhost:8080
+    description: Desarrollo local
+
+paths:
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Registrar usuario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Usuario creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Iniciar sesión
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Sesión iniciada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  /api/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Renovar tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Tokens renovados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Cerrar sesión
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '204':
+          description: Sesión cerrada
+
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Usuario autenticado
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Perfil del usuario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSummary'
+
+  /api/places:
+    get:
+      tags: [Places]
+      summary: Buscar establecimientos
+      parameters:
+        - name: query
+          in: query
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: size
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Lista paginada de establecimientos
+
+  /api/places/{placeId}/tickets:
+    post:
+      tags: [Tickets]
+      summary: Tomar turno
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: placeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '201':
+          description: Turno creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+
+  /api/places/{placeId}/staff-registration-key/rotate:
+    post:
+      tags: [Places]
+      summary: Generar o rotar la clave de registro de personal
+      description: >
+        Devuelve la clave en texto plano una sola vez. El digest HMAC-SHA256 se
+        guarda en la base de datos. La clave anterior deja de funcionar de inmediato.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: placeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Nueva clave generada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffRegistrationKeyResponse'
+        '403':
+          description: Requiere rol ADMIN
+
+  /api/tickets/mine:
+    get:
+      tags: [Tickets]
+      summary: Turno activo del usuario
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Turno activo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+        '204':
+          description: Sin turno activo
+
+  /api/devices/register:
+    post:
+      tags: [Devices]
+      summary: Registrar dispositivo FCM
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterDeviceRequest'
+      responses:
+        '201':
+          description: Dispositivo registrado
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [fullName, email, username, password]
+      properties:
+        fullName:
+          type: string
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+        password:
+          type: string
+          minLength: 8
+        role:
+          type: string
+          enum: [CUSTOMER, STAFF]
+          description: Opcional. Por defecto CUSTOMER. ADMIN no está permitido.
+        staffRegistrationKey:
+          type: string
+          minLength: 8
+          maxLength: 8
+          description: Requerido solo cuando role=STAFF.
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+
+    LogoutRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+
+    UserSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        fullName:
+          type: string
+        role:
+          type: string
+          enum: [CUSTOMER, STAFF, ADMIN]
+        placeId:
+          type: string
+          format: uuid
+          nullable: true
+        placeName:
+          type: string
+          nullable: true
+
+    StaffRegistrationKeyResponse:
+      type: object
+      properties:
+        placeId:
+          type: string
+          format: uuid
+        placeName:
+          type: string
+        staffRegistrationKey:
+          type: string
+          minLength: 8
+          maxLength: 8
+
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        tokenType:
+          type: string
+          example: Bearer
+        expiresIn:
+          type: integer
+        user:
+          $ref: '#/components/schemas/UserSummary'
+
+    Ticket:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        placeId:
+          type: string
+          format: uuid
+        placeName:
+          type: string
+        number:
+          type: string
+          example: A-047
+        position:
+          type: integer
+        estimatedMinutes:
+          type: integer
+        status:
+          type: string
+          enum: [WAITING, NEARLY, CALLED, SERVING, COMPLETED, CANCELLED, EXPIRED]
+        issuedAt:
+          type: string
+          format: date-time
+        counterNumber:
+          type: integer
+          nullable: true
+
+    RegisterDeviceRequest:
+      type: object
+      required: [fcmToken, platform]
+      properties:
+        fcmToken:
+          type: string
+        platform:
+          type: string
+          enum: [ANDROID, WEB]
+        deviceName:
+          type: string

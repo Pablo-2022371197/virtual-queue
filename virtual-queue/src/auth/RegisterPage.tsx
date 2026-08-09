@@ -11,20 +11,32 @@ import {
 } from '@heroui/react'
 import { AuthPageShell } from './AuthPageShell'
 import { PrivacyConsentField } from './PrivacyConsentField'
-import { AuthError, register } from '../lib/auth'
+import { PasswordField } from '../shared/components/PasswordField'
+import { useAuth } from '../features/auth/useAuth'
+import { ApiError } from '../shared/api/client'
+import type { UserRole } from '../shared/types/api'
+
+const STAFF_KEY_PATTERN = /^[A-HJ-NP-Z2-9]{8}$/
 
 export default function RegisterPage() {
   const navigate = useNavigate()
+  const { register, status } = useAuth()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [role, setRole] = useState<'CUSTOMER' | 'STAFF'>('CUSTOMER')
+  const [staffRegistrationKey, setStaffRegistrationKey] = useState('')
   const [acceptedPolicies, setAcceptedPolicies] = useState(false)
   const [showConsentError, setShowConsentError] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+
+  if (status === 'authenticated' && !success) {
+    navigate('/home', { replace: true })
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -36,24 +48,47 @@ export default function RegisterPage() {
       return
     }
 
+    if (password.length < 8) {
+      setError('La contraseña debe tener al menos 8 caracteres.')
+      return
+    }
+
+    if (password !== confirmPassword) {
+      setError('Las contraseñas no coinciden.')
+      return
+    }
+
+    if (role === 'STAFF') {
+      const key = staffRegistrationKey.trim().toUpperCase()
+      if (!STAFF_KEY_PATTERN.test(key)) {
+        setError(
+          'La clave de sucursal debe tener exactamente 8 caracteres alfanuméricos (sin 0, O, 1, I ni L).',
+        )
+        return
+      }
+    }
+
     setIsLoading(true)
 
     try {
-      await register({
-        fullName,
-        email,
-        username,
+      const payload = {
+        fullName: fullName.trim(),
+        email: email.trim(),
+        username: username.trim(),
         password,
-        confirmPassword,
-        acceptedPolicies,
-      })
+        role: role as UserRole,
+        ...(role === 'STAFF'
+          ? { staffRegistrationKey: staffRegistrationKey.trim().toUpperCase() }
+          : {}),
+      }
+      await register(payload)
       setSuccess(true)
       window.setTimeout(() => {
-        navigate('/home', { replace: true })
+        navigate(role === 'STAFF' ? '/staff' : '/home', { replace: true })
       }, 1200)
     } catch (err) {
       const message =
-        err instanceof AuthError
+        err instanceof ApiError
           ? err.message
           : 'No se pudo completar el registro. Intenta de nuevo.'
       setError(message)
@@ -68,8 +103,7 @@ export default function RegisterPage() {
         <Card.Header>
           <Card.Title className="text-base">Crear cuenta</Card.Title>
           <Card.Description>
-            Registro simulado para el proyecto académico. Acepta las políticas
-            para continuar.
+            Regístrate para tomar turnos o unirte como personal de un establecimiento.
           </Card.Description>
         </Card.Header>
 
@@ -77,7 +111,7 @@ export default function RegisterPage() {
           {error && <Alert status="danger">{error}</Alert>}
           {success && (
             <Alert status="success">
-              Cuenta creada correctamente. Redirigiendo al panel…
+              Cuenta creada correctamente. Redirigiendo…
             </Alert>
           )}
 
@@ -86,6 +120,26 @@ export default function RegisterPage() {
             className="auth-form flex flex-col gap-4"
             onSubmit={handleSubmit}
           >
+            <fieldset className="flex flex-col gap-2">
+              <legend className="text-sm font-medium text-foreground">Tipo de cuenta</legend>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant={role === 'CUSTOMER' ? 'primary' : 'secondary'}
+                  onPress={() => setRole('CUSTOMER')}
+                >
+                  Cliente
+                </Button>
+                <Button
+                  type="button"
+                  variant={role === 'STAFF' ? 'primary' : 'secondary'}
+                  onPress={() => setRole('STAFF')}
+                >
+                  Personal
+                </Button>
+              </div>
+            </fieldset>
+
             <TextField
               name="fullName"
               isRequired
@@ -120,29 +174,40 @@ export default function RegisterPage() {
               <Input placeholder="maria.lopez" autoComplete="username" />
             </TextField>
 
-            <TextField
+            {role === 'STAFF' && (
+              <TextField
+                name="staffRegistrationKey"
+                isRequired
+                fullWidth
+                value={staffRegistrationKey}
+                onChange={(value) => setStaffRegistrationKey(value.toUpperCase())}
+              >
+                <Label>Clave de sucursal</Label>
+                <Input
+                  placeholder="8 caracteres"
+                  autoComplete="off"
+                  maxLength={8}
+                />
+              </TextField>
+            )}
+
+            <PasswordField
+              label="Contraseña"
               name="password"
-              type="password"
-              isRequired
-              fullWidth
               value={password}
               onChange={setPassword}
-            >
-              <Label>Contraseña</Label>
-              <Input placeholder="Mínimo 6 caracteres" autoComplete="new-password" />
-            </TextField>
+              autoComplete="new-password"
+              placeholder="Mínimo 8 caracteres"
+            />
 
-            <TextField
+            <PasswordField
+              label="Confirmar contraseña"
               name="confirmPassword"
-              type="password"
-              isRequired
-              fullWidth
               value={confirmPassword}
               onChange={setConfirmPassword}
-            >
-              <Label>Confirmar contraseña</Label>
-              <Input placeholder="Repite tu contraseña" autoComplete="new-password" />
-            </TextField>
+              autoComplete="new-password"
+              placeholder="Repite tu contraseña"
+            />
 
             <PrivacyConsentField
               isSelected={acceptedPolicies}

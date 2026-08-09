@@ -1,23 +1,32 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { Eye, EyeOff } from 'lucide-react'
 import {
   Alert,
   Button,
   Card,
   Input,
+  InputGroup,
   Label,
   Spinner,
   TextField,
 } from '@heroui/react'
 import { AuthPageShell } from './AuthPageShell'
-import { AuthError, login } from '../lib/auth'
+import { useAuth } from '../features/auth/useAuth'
+import { ApiError } from '../shared/api/client'
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const { login, status } = useAuth()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+
+  if (status === 'authenticated') {
+    navigate('/home', { replace: true })
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -25,11 +34,11 @@ export default function LoginPage() {
     setIsLoading(true)
 
     try {
-      await login(username.trim(), password)
+      await login({ username: username.trim(), password })
       navigate('/home', { replace: true })
     } catch (err) {
       const message =
-        err instanceof AuthError
+        err instanceof ApiError
           ? err.message
           : 'No se pudo iniciar sesión. Intenta de nuevo.'
       setError(message)
@@ -63,20 +72,41 @@ export default function LoginPage() {
               value={username}
               onChange={setUsername}
             >
-              <Label>Usuario</Label>
-              <Input placeholder="admin" autoComplete="username" />
+              <Label>Usuario o correo</Label>
+              <Input
+                placeholder="admin o admin@virtualqueue.local"
+                autoComplete="username"
+              />
             </TextField>
 
             <TextField
               name="password"
-              type="password"
               isRequired
               fullWidth
               value={password}
               onChange={setPassword}
             >
               <Label>Contraseña</Label>
-              <Input placeholder="••••••" autoComplete="current-password" />
+              <InputGroup fullWidth>
+                <InputGroup.Input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••"
+                  autoComplete="current-password"
+                />
+                <InputGroup.Suffix>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    isIconOnly
+                    aria-label={
+                      showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'
+                    }
+                    onPress={() => setShowPassword((current) => !current)}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </Button>
+                </InputGroup.Suffix>
+              </InputGroup>
             </TextField>
           </form>
         </Card.Content>
@@ -98,13 +128,6 @@ export default function LoginPage() {
               'Entrar'
             )}
           </Button>
-
-          <p className="text-center text-xs text-muted">
-            Demo: usuario{' '}
-            <span className="font-semibold text-foreground">admin</span>
-            {' / '}contraseña{' '}
-            <span className="font-semibold text-foreground">admin</span>
-          </p>
 
           <p className="text-center text-sm text-muted">
             ¿No tienes cuenta?{' '}

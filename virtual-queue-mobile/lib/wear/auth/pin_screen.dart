@@ -1,23 +1,26 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wear_plus/wear_plus.dart';
 
-import 'biometric_service.dart';
+import '../../core/auth/auth_service.dart';
+import '../wear_safe_area.dart';
 import 'pin_storage.dart';
 import 'session_manager.dart';
 
 enum PinMode { setup, verify }
 
-class PinScreen extends StatefulWidget {
+class PinScreen extends ConsumerStatefulWidget {
   final PinMode mode;
   const PinScreen({super.key, required this.mode});
 
   @override
-  State<PinScreen> createState() => _PinScreenState();
+  ConsumerState<PinScreen> createState() => _PinScreenState();
 }
 
-class _PinScreenState extends State<PinScreen> {
+class _PinScreenState extends ConsumerState<PinScreen> {
   String _input = '';
   String? _firstPin;
   String? _error;
@@ -25,14 +28,6 @@ class _PinScreenState extends State<PinScreen> {
   bool _blocked = false;
   int _blockSeconds = 30;
   Timer? _blockTimer;
-  bool _biometricAvailable = false;
-  bool _biometricAttempted = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkBiometric();
-  }
 
   @override
   void dispose() {
@@ -40,12 +35,7 @@ class _PinScreenState extends State<PinScreen> {
     super.dispose();
   }
 
-  Future<void> _checkBiometric() async {
-    final avail = await BiometricService.isAvailable();
-    if (mounted) {
-      setState(() => _biometricAvailable = avail);
-    }
-  }
+  String? get _userId => ref.read(authStateProvider).user?.id;
 
   void _onDigit(String digit) {
     if (_blocked) return;
@@ -68,8 +58,25 @@ class _PinScreenState extends State<PinScreen> {
     });
   }
 
+  Future<void> _skipPin() async {
+    final userId = _userId;
+    if (userId == null || userId.isEmpty) {
+      context.go('/wear/login');
+      return;
+    }
+    await PinStorage.markPinSkipped(userId);
+    await ref.read(authStateProvider.notifier).unlock();
+    SessionManager.startSession();
+    if (mounted) context.go('/wear/home');
+  }
+
   Future<void> _submit() async {
     if (_input.length != 4) return;
+    final userId = _userId;
+    if (userId == null || userId.isEmpty) {
+      context.go('/wear/login');
+      return;
+    }
 
     if (widget.mode == PinMode.setup) {
       if (_firstPin == null) {
@@ -79,11 +86,10 @@ class _PinScreenState extends State<PinScreen> {
         });
       } else {
         if (_input == _firstPin) {
-          await PinStorage.savePin(_input);
-          if (mounted) {
-            SessionManager.startSession();
-            context.go('/wear/home');
-          }
+          await PinStorage.savePin(_input, scope: PinScope.wear, userId: userId);
+          await ref.read(authStateProvider.notifier).unlock();
+          SessionManager.startSession();
+          if (mounted) context.go('/wear/home');
         } else {
           setState(() {
             _error = 'Los PIN no coinciden';
@@ -93,12 +99,15 @@ class _PinScreenState extends State<PinScreen> {
         }
       }
     } else {
-      final valid = await PinStorage.verifyPin(_input);
+      final valid = await PinStorage.verifyPin(
+        _input,
+        scope: PinScope.wear,
+        userId: userId,
+      );
       if (valid) {
-        if (mounted) {
-          SessionManager.startSession();
-          context.go('/wear/home');
-        }
+        await ref.read(authStateProvider.notifier).unlock();
+        SessionManager.startSession();
+        if (mounted) context.go('/wear/home');
       } else {
         setState(() {
           _failedAttempts++;
@@ -134,110 +143,94 @@ class _PinScreenState extends State<PinScreen> {
     });
   }
 
-  Future<void> _authenticateBiometric() async {
-    if (_biometricAttempted) return;
-    setState(() => _biometricAttempted = true);
-    final ok = await BiometricService.authenticate();
-    if (ok && mounted) {
-      SessionManager.startSession();
-      context.go('/wear/home');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final isSetup = widget.mode == PinMode.setup;
     final title = isSetup
         ? (_firstPin == null ? 'Configurar PIN' : 'Confirmar PIN')
         : 'Ingresar PIN';
-    final subtitle = isSetup && _firstPin != null ? 'Ingresa el PIN nuevamente' : null;
+    final subtitle =
+        isSetup && _firstPin != null ? 'Ingresa el PIN nuevamente' : null;
 
     return AmbientMode(
       builder: (context, mode, child) {
-        return MaterialApp(
-          debugShowCheckedModeBanner: false,
-          theme: ThemeData(
-            brightness: Brightness.dark,
-            scaffoldBackgroundColor: Colors.black,
-            textTheme: const TextTheme(
-              bodyMedium: TextStyle(color: Colors.white),
-              bodySmall: TextStyle(color: Colors.white70),
-            ),
-          ),
-          home: Scaffold(
-            backgroundColor: Colors.black,
-            body: SafeArea(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  if (subtitle != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text(
-                        subtitle,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.white70,
-                        ),
+        return Scaffold(
+          backgroundColor: Colors.black,
+          body: WearSafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxHeight < 220;
+                final buttonSize = compact ? 36.0 : 42.0;
+                final buttonMargin = compact ? 2.0 : 3.0;
+                final titleSize = compact ? 12.0 : 14.0;
+
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: titleSize,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  const SizedBox(height: 16),
-                  // PIN dots display
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(4, (i) {
-                      final filled = i < _input.length;
-                      return Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 8),
-                        width: 16,
-                        height: 16,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: filled ? Colors.white : Colors.white24,
-                        ),
-                      );
-                    }),
-                  ),
-                  const SizedBox(height: 8),
-                  if (_error != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text(
-                        _blocked
-                            ? 'Bloqueado $_blockSeconds s'
-                            : _error!,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: _blocked ? Colors.orange : Colors.redAccent,
+                    if (subtitle != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          subtitle,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.white70,
+                          ),
                         ),
                       ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(4, (i) {
+                        final filled = i < _input.length;
+                        return Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 5),
+                          width: 9,
+                          height: 9,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: filled ? Colors.white : Colors.white24,
+                          ),
+                        );
+                      }),
                     ),
-                  const SizedBox(height: 16),
-                  // Numeric keypad 3x4
-                  _buildKeypad(),
-                  const SizedBox(height: 8),
-                  if (widget.mode == PinMode.verify &&
-                      _biometricAvailable &&
-                      !_biometricAttempted)
-                    TextButton.icon(
-                      onPressed: _authenticateBiometric,
-                      icon: const Icon(Icons.fingerprint,
-                          color: Colors.white70, size: 20),
-                      label: const Text(
-                        'Huella',
-                        style: TextStyle(color: Colors.white70),
+                    if (_error != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          _blocked ? 'Bloqueado $_blockSeconds s' : _error!,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: _blocked ? Colors.orange : Colors.redAccent,
+                          ),
+                        ),
                       ),
-                    ),
-                ],
-              ),
+                    const SizedBox(height: 8),
+                    _buildKeypad(buttonSize, buttonMargin, compact ? 15.0 : 17.0),
+                    if (isSetup) ...[
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: _skipPin,
+                        child: const Text(
+                          'Omitir',
+                          style: TextStyle(color: Colors.white70, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ],
+                );
+              },
             ),
           ),
         );
@@ -245,7 +238,7 @@ class _PinScreenState extends State<PinScreen> {
     );
   }
 
-  Widget _buildKeypad() {
+  Widget _buildKeypad(double buttonSize, double buttonMargin, double fontSize) {
     const rows = [
       ['1', '2', '3'],
       ['4', '5', '6'],
@@ -253,6 +246,7 @@ class _PinScreenState extends State<PinScreen> {
     ];
 
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         for (final row in rows)
           Row(
@@ -262,21 +256,29 @@ class _PinScreenState extends State<PinScreen> {
                 _KeypadButton(
                   label: digit,
                   onTap: _blocked ? null : () => _onDigit(digit),
+                  size: buttonSize,
+                  margin: buttonMargin,
+                  fontSize: fontSize,
                 ),
             ],
           ),
-        // Last row: empty, 0, delete
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const SizedBox(width: 72),
+            SizedBox(width: buttonSize + buttonMargin * 2),
             _KeypadButton(
               label: '0',
               onTap: _blocked ? null : () => _onDigit('0'),
+              size: buttonSize,
+              margin: buttonMargin,
+              fontSize: fontSize,
             ),
             _KeypadButton(
               label: '⌫',
               onTap: _blocked ? null : _onDelete,
+              size: buttonSize,
+              margin: buttonMargin,
+              fontSize: fontSize,
             ),
           ],
         ),
@@ -288,28 +290,34 @@ class _PinScreenState extends State<PinScreen> {
 class _KeypadButton extends StatelessWidget {
   final String label;
   final VoidCallback? onTap;
+  final double size;
+  final double margin;
+  final double fontSize;
 
-  const _KeypadButton({required this.label, this.onTap});
+  const _KeypadButton({
+    required this.label,
+    this.onTap,
+    this.size = 42.0,
+    this.margin = 3.0,
+    this.fontSize = 17.0,
+  });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 72,
-        height: 48,
+        width: size,
+        height: size,
         alignment: Alignment.center,
-        margin: const EdgeInsets.all(4),
+        margin: EdgeInsets.all(margin),
         decoration: BoxDecoration(
-          color: Colors.white12,
-          borderRadius: BorderRadius.circular(8),
+          color: onTap != null ? Colors.white12 : Colors.white54,
+          shape: BoxShape.circle,
         ),
         child: Text(
           label,
-          style: const TextStyle(
-            fontSize: 24,
-            color: Colors.white,
-          ),
+          style: TextStyle(fontSize: fontSize, color: Colors.white),
         ),
       ),
     );

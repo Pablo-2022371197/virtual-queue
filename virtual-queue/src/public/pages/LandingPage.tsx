@@ -1,12 +1,11 @@
 import { Link } from 'react-router-dom'
-import { Button, Card, Chip } from '@heroui/react'
+import { Button, Card } from '@heroui/react'
 import {
   Ticket,
   Smartphone,
   Bell,
   Clock,
   BarChart3,
-  ChevronRight,
 } from 'lucide-react'
 import { ContactForm } from '@public/components/contact/ContactForm'
 import { SocialLinks } from '@public/components/contact/SocialLinks'

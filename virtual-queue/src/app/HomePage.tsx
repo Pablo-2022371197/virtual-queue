@@ -1,29 +1,43 @@
 import { Link } from 'react-router-dom'
 import { Alert, Button, Card, Chip, Separator, Spinner } from '@heroui/react'
-import { Ticket } from 'lucide-react'
-import { useMyTicket } from '../hooks/useMyTicket'
+import { Clock, MapPin, Ticket } from 'lucide-react'
+import { useMyTicket, useCancelTicket } from '../hooks/useMyTicket'
+import { TicketStatusChip } from '../features/tickets/TicketStatusChip'
+import { ConnectionStatus } from '../shared/components/ConnectionStatus'
+import { useQueueSocket } from '../shared/realtime/useQueueSocket'
+import { useState } from 'react'
 
 export default function HomePage() {
   const { data: ticket, isLoading, isError } = useMyTicket()
+  const cancelMutation = useCancelTicket()
+  const { connected } = useQueueSocket()
+  const [showConfirm, setShowConfirm] = useState(false)
+
+  async function handleCancel() {
+    if (!ticket) return
+    await cancelMutation.mutateAsync(ticket.id)
+    setShowConfirm(false)
+  }
 
   return (
     <section className="flex flex-col gap-6">
-      <header>
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          Mi turno
-        </h1>
-        <p className="mt-0.5 text-sm text-muted">
-          Consulta el estado de tu turno activo en tiempo real.
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">
+            Mi turno
+          </h1>
+          <p className="mt-0.5 text-sm text-muted">
+            Consulta el estado de tu turno activo en tiempo real.
+          </p>
+        </div>
+        <ConnectionStatus connected={connected} />
       </header>
 
       {isLoading && (
         <Card>
           <Card.Content className="flex items-center justify-center gap-3 py-12">
             <Spinner size="sm" />
-            <span className="text-sm text-muted">
-              Cargando tu turno…
-            </span>
+            <span className="text-sm text-muted">Cargando tu turno…</span>
           </Card.Content>
         </Card>
       )}
@@ -57,13 +71,18 @@ export default function HomePage() {
 
       {!isLoading && !isError && ticket && (
         <Card className="overflow-hidden">
-          {/* Accent banner — uses pure Tailwind, no conflicting Card padding */}
           <div className="bg-accent px-6 py-5 text-accent-foreground">
-            <p className="text-xs font-medium uppercase tracking-widest text-accent-foreground/70">
-              Tu turno activo
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium uppercase tracking-widest text-accent-foreground/70">
+                Tu turno activo
+              </p>
+              <TicketStatusChip status={ticket.status} />
+            </div>
             <p className="mt-1 text-5xl font-bold tracking-tight">
-              #{ticket.number ?? ticket.id}
+              {ticket.number}
+            </p>
+            <p className="mt-1 text-sm text-accent-foreground/80">
+              {ticket.placeName}
             </p>
           </div>
 
@@ -71,14 +90,84 @@ export default function HomePage() {
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted">Posición en la fila</span>
               <Chip color="accent" variant="soft">
-                {ticket.position ?? '—'}
+                {ticket.position}
               </Chip>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-sm text-muted">
+                <Clock size={14} />
+                Tiempo estimado
+              </span>
+              <span className="text-sm font-medium text-foreground">
+                ~{ticket.estimatedMinutes} min
+              </span>
+            </div>
+            {(ticket.status === 'CALLED' || ticket.status === 'SERVING') &&
+              ticket.counterNumber != null && (
+                <Alert status="accent">
+                  Dirígete a la ventanilla {ticket.counterNumber}
+                </Alert>
+              )}
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-sm text-muted">
+                <MapPin size={14} />
+                Establecimiento
+              </span>
+              <Link
+                to={`/place/${ticket.placeId}/queue`}
+                className="text-sm font-medium text-accent hover:underline"
+              >
+                Ver fila
+              </Link>
             </div>
             <Separator />
             <p className="text-sm text-muted">
-              Recibirás un aviso en tu teléfono y wearable cuando se acerque tu
-              turno.
+              Recibirás un aviso cuando se acerque tu turno.
             </p>
+
+            {!showConfirm ? (
+              <Button
+                variant="danger"
+                fullWidth
+                onPress={() => setShowConfirm(true)}
+                isDisabled={cancelMutation.isPending}
+              >
+                Cancelar turno
+              </Button>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <Alert status="warning">
+                  ¿Confirmas que deseas cancelar tu turno?
+                </Alert>
+                <div className="flex gap-2">
+                  <Button
+                    variant="tertiary"
+                    fullWidth
+                    onPress={() => setShowConfirm(false)}
+                  >
+                    No, mantener
+                  </Button>
+                  <Button
+                    variant="danger"
+                    fullWidth
+                    onPress={handleCancel}
+                    isDisabled={cancelMutation.isPending}
+                  >
+                    {cancelMutation.isPending ? (
+                      <Spinner size="sm" color="current" />
+                    ) : (
+                      'Sí, cancelar'
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {cancelMutation.isError && (
+              <Alert status="danger">
+                No se pudo cancelar el turno. Intenta de nuevo.
+              </Alert>
+            )}
           </Card.Content>
         </Card>
       )}

@@ -1,10 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
-import client from '../lib/client'
-import type { Place } from '../types'
+import { searchPlaces, type PlaceSearchParams } from '../shared/api/places'
 
-export function usePlaces() {
+export function usePlaces(params: PlaceSearchParams = {}) {
   return useQuery({
-    queryKey: ['places'],
-    queryFn: () => client<Place[]>('/api/places'),
+    queryKey: ['places', params],
+    queryFn: () => searchPlaces(params),
   })
 }

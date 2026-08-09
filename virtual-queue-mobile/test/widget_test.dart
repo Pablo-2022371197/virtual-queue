@@ -1,30 +1,52 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wear_plus/wear_plus.dart';
 
-import 'package:virtual_queue_mobile/main.dart';
+import 'package:virtual_queue_mobile/features/login/loginScreen.dart';
+import 'package:virtual_queue_mobile/wear/auth/pin_screen.dart';
+import 'package:virtual_queue_mobile/wear/wear_safe_area.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('login screen shows username and password fields', (tester) async {
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          home: LoginScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    expect(find.text('Usuario'), findsOneWidget);
+    expect(find.text('Contraseña'), findsOneWidget);
+    expect(find.text('Iniciar sesión'), findsOneWidget);
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+  testWidgets('wear pin screen shows keypad and skip', (tester) async {
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          home: PinScreen(mode: PinMode.setup),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
+    expect(find.text('Configurar PIN'), findsOneWidget);
+    expect(find.text('Omitir'), findsOneWidget);
     expect(find.text('1'), findsOneWidget);
+    expect(find.text('0'), findsOneWidget);
+    expect(find.text('⌫'), findsOneWidget);
+  });
+
+  test('wear insets are larger on round faces', () {
+    const size = Size(450, 450);
+    final round = WearInsets.forShape(WearShape.round, size);
+    final square = WearInsets.forShape(WearShape.square, size);
+
+    expect(square.left, 12);
+    expect(round.left, inInclusiveRange(24, 36));
+    expect(round.left, greaterThan(square.left));
   });
 }

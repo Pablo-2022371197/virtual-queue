@@ -1,73 +1,130 @@
-import { Card, Chip } from '@heroui/react'
+import { useState } from 'react'
+import { Alert, Card, Chip, Spinner } from '@heroui/react'
 import DashboardStats from './place/DashboardStats'
-
-const summaryStats = [
-  { label: 'Turnos hoy', value: '128', change: '+12%' },
-  { label: 'Tiempo promedio', value: '8 min', change: '-2 min' },
-  { label: 'Establecimientos', value: '6', change: 'activos' },
-  { label: 'Usuarios en fila', value: '34', change: 'en vivo' },
-]
+import { usePlaces } from '../hooks/usePlaces'
+import { usePlaceStats } from '../hooks/usePlace'
+import { usePlaceStatsSocket } from '../shared/realtime/useQueueSocket'
+import { ConnectionStatus } from '../shared/components/ConnectionStatus'
+import { useQueueSocket } from '../shared/realtime/useQueueSocket'
 
 export default function StatsPage() {
+  const { data: placesPage, isLoading } = usePlaces({ size: 50 })
+  const places = placesPage?.content ?? []
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string | undefined>()
+  const activePlaceId = selectedPlaceId ?? places[0]?.id
+
+  const { data: stats, isLoading: statsLoading } = usePlaceStats(activePlaceId)
+  const { connected } = useQueueSocket()
+  usePlaceStatsSocket(activePlaceId)
+
+  const selectedPlace = places.find((p) => p.id === activePlaceId)
+
   return (
     <section className="flex flex-col gap-6">
-      <header>
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          Herramientas estadísticas
-        </h1>
-        <p className="mt-0.5 text-sm text-muted">
-          Panel de métricas disponible tras iniciar sesión.
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">
+            Herramientas estadísticas
+          </h1>
+          <p className="mt-0.5 text-sm text-muted">
+            Métricas en tiempo real del establecimiento seleccionado.
+          </p>
+        </div>
+        <ConnectionStatus connected={connected} />
       </header>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {summaryStats.map((stat) => (
-          <Card key={stat.label}>
-            <Card.Content className="flex flex-col gap-1 py-2">
-              <span className="text-xs text-muted">{stat.label}</span>
-              <span className="text-2xl font-bold text-foreground">{stat.value}</span>
-              <Chip size="sm" variant="soft" color="accent">
-                {stat.change}
-              </Chip>
-            </Card.Content>
-          </Card>
-        ))}
-      </div>
+      {isLoading && (
+        <div className="flex items-center justify-center gap-3 py-8">
+          <Spinner size="sm" />
+          <span className="text-sm text-muted">Cargando establecimientos…</span>
+        </div>
+      )}
 
-      <Card>
-        <Card.Header>
-          <Card.Title>Fila en vivo — establecimiento demo</Card.Title>
-          <Card.Description>
-            Widget embebido con estadísticas en tiempo real vía WebSocket.
-          </Card.Description>
-        </Card.Header>
-        <Card.Content>
-          <DashboardStats
-            placeId="demo"
-            onTurnCalled={(payload) => {
-              console.log('Turn called', payload)
-            }}
-          />
-        </Card.Content>
-      </Card>
+      {!isLoading && places.length === 0 && (
+        <Alert status="warning">No hay establecimientos disponibles.</Alert>
+      )}
 
-      <Card variant="secondary">
-        <Card.Content className="py-8">
-          <div className="flex h-40 items-end justify-around gap-2 px-4">
-            {[40, 65, 45, 80, 55, 90, 70].map((height, i) => (
-              <div
-                key={i}
-                className="w-full max-w-10 rounded-t-md bg-accent/70"
-                style={{ height: `${height}%` }}
-                title={`Día ${i + 1}`}
-              />
+      {places.length > 0 && (
+        <>
+          <div className="flex flex-wrap gap-2">
+            {places.map((place) => (
+              <button
+                key={place.id}
+                type="button"
+                onClick={() => setSelectedPlaceId(place.id)}
+                className="rounded-full"
+              >
+                <Chip
+                  variant={activePlaceId === place.id ? 'primary' : 'soft'}
+                  color="accent"
+                >
+                  {place.name}
+                </Chip>
+              </button>
             ))}
           </div>
-          <p className="mt-4 text-center text-xs text-muted">
-            Turnos atendidos — últimos 7 días
-          </p>
-        </Card.Content>
-      </Card>
+
+          {statsLoading && (
+            <div className="flex items-center justify-center gap-3 py-8">
+              <Spinner size="sm" />
+            </div>
+          )}
+
+          {stats && (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <Card>
+                <Card.Content className="flex flex-col gap-1 py-2">
+                  <span className="text-xs text-muted">Personas en fila</span>
+                  <span className="text-2xl font-bold text-foreground">
+                    {stats.activeTickets}
+                  </span>
+                  <Chip size="sm" variant="soft" color="accent">
+                    en vivo
+                  </Chip>
+                </Card.Content>
+              </Card>
+              <Card>
+                <Card.Content className="flex flex-col gap-1 py-2">
+                  <span className="text-xs text-muted">Espera promedio</span>
+                  <span className="text-2xl font-bold text-foreground">
+                    {stats.averageWaitMinutes} min
+                  </span>
+                </Card.Content>
+              </Card>
+              <Card>
+                <Card.Content className="flex flex-col gap-1 py-2">
+                  <span className="text-xs text-muted">Ventanillas abiertas</span>
+                  <span className="text-2xl font-bold text-foreground">
+                    {stats.openCounters}
+                  </span>
+                </Card.Content>
+              </Card>
+              <Card>
+                <Card.Content className="flex flex-col gap-1 py-2">
+                  <span className="text-xs text-muted">Turno llamado</span>
+                  <span className="text-2xl font-bold text-foreground">
+                    {stats.turnCalled ?? '—'}
+                  </span>
+                </Card.Content>
+              </Card>
+            </div>
+          )}
+
+          <Card>
+            <Card.Header>
+              <Card.Title>
+                Fila en vivo — {selectedPlace?.name ?? 'Establecimiento'}
+              </Card.Title>
+              <Card.Description>
+                Widget embebido con estadísticas en tiempo real vía WebSocket.
+              </Card.Description>
+            </Card.Header>
+            <Card.Content>
+              <DashboardStats placeId={activePlaceId} />
+            </Card.Content>
+          </Card>
+        </>
+      )}
     </section>
   )
 }

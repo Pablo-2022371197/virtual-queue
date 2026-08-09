@@ -1,15 +1,17 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { Separator } from '@heroui/react'
-import { Ticket, Building2, BarChart3, Menu, X } from 'lucide-react'
+import { Ticket, Building2, BarChart3, Menu, X, Users, Settings, UserCircle } from 'lucide-react'
 import { Brand } from '@shared/brand/Brand'
 import { appVersion } from '@lib/siteConfig'
 import { UserMenu } from './UserMenu'
+import { useAuth } from '../../features/auth/useAuth'
 
-const links = [
+const baseLinks = [
   { to: '/home', label: 'Mi turno', Icon: Ticket },
   { to: '/search', label: 'Establecimientos', Icon: Building2 },
   { to: '/estadisticas', label: 'Estadísticas', Icon: BarChart3 },
+  { to: '/cuenta', label: 'Mi cuenta', Icon: UserCircle },
 ]
 
 function SidebarVersion() {
@@ -22,6 +24,17 @@ function SidebarVersion() {
 
 export function AppSidebar() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { hasRole } = useAuth()
+
+  const links = [
+    ...baseLinks,
+    ...(hasRole('STAFF', 'ADMIN')
+      ? [{ to: '/staff', label: 'Personal', Icon: Users }]
+      : []),
+    ...(hasRole('ADMIN')
+      ? [{ to: '/admin/places', label: 'Administrar', Icon: Settings }]
+      : []),
+  ]
 
   const navLinks = (onClick?: () => void) =>
     links.map(({ to, label, Icon }) => (
