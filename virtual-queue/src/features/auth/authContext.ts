@@ -6,8 +6,8 @@ export type AuthStatus = 'loading' | 'authenticated' | 'anonymous'
 export interface AuthContextValue {
   status: AuthStatus
   user: UserSummary | null
-  login: (data: LoginRequest) => Promise<void>
-  register: (data: RegisterRequest) => Promise<void>
+  login: (data: LoginRequest) => Promise<UserSummary>
+  register: (data: RegisterRequest) => Promise<UserSummary>
   logout: () => Promise<void>
   refreshUser: () => Promise<void>
   hasRole: (...roles: UserRole[]) => boolean

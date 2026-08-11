@@ -161,6 +161,11 @@ public class AuthService {
 		refreshTokenRepository.findByTokenHash(hash).ifPresent(token -> {
 			token.setRevokedAt(Instant.now());
 			refreshTokenRepository.save(token);
+			User user = token.getUser();
+			if (user != null && user.getClaimedCounter() != null) {
+				user.setClaimedCounter(null);
+				userRepository.save(user);
+			}
 		});
 	}
 
@@ -259,7 +264,9 @@ public class AuthService {
 				user.getFullName(),
 				user.getRole(),
 				place != null ? place.getId() : null,
-				place != null ? place.getName() : null);
+				place != null ? place.getName() : null,
+				user.getClaimedCounter(),
+				mx.edu.uteq.virtual_queue_back.common.CounterLabels.toLabel(user.getClaimedCounter()));
 	}
 
 	private void revokeFamily(UUID familyId) {

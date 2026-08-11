@@ -17,11 +17,14 @@ export function usePlaceQueue(placeId: string | undefined) {
   })
 }
 
-export function usePlaceStats(placeId: string | undefined) {
+export function usePlaceStats(
+  placeId: string | undefined,
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: ['places', placeId, 'stats'],
     queryFn: () => getPlaceStats(placeId!),
-    enabled: !!placeId,
+    enabled: !!placeId && (options?.enabled ?? true),
     refetchInterval: 30_000,
   })
 }

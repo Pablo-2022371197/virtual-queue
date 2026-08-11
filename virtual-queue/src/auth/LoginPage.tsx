@@ -17,15 +17,19 @@ import { ApiError } from '../shared/api/client'
 
 export default function LoginPage() {
   const navigate = useNavigate()
-  const { login, status } = useAuth()
+  const { login, status, user } = useAuth()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
+  function homeForRole(role?: string) {
+    return role === 'STAFF' ? '/staff' : '/home'
+  }
+
   if (status === 'authenticated') {
-    navigate('/home', { replace: true })
+    navigate(homeForRole(user?.role), { replace: true })
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -34,8 +38,8 @@ export default function LoginPage() {
     setIsLoading(true)
 
     try {
-      await login({ username: username.trim(), password })
-      navigate('/home', { replace: true })
+      const loggedIn = await login({ username: username.trim(), password })
+      navigate(homeForRole(loggedIn.role), { replace: true })
     } catch (err) {
       const message =
         err instanceof ApiError

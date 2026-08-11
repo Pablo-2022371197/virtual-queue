@@ -111,6 +111,7 @@ export async function mockRequest<T>(
       prefix: 'A',
       averageServiceMinutes: 8,
       openCounters: 2,
+      totalCounters: 2,
       active: true,
     } satisfies Queue as T
   }

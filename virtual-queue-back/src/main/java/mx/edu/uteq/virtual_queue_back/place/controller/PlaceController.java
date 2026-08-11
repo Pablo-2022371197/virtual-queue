@@ -1,5 +1,6 @@
 package mx.edu.uteq.virtual_queue_back.place.controller;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -43,6 +44,21 @@ public class PlaceController {
 			@RequestParam(required = false) String category,
 			Pageable pageable) {
 		return placeService.search(query, category, pageable);
+	}
+
+	@GetMapping("/experienced")
+	public List<PlaceDTO> experiencedPlaces() {
+		return placeService.listPlacesForStats();
+	}
+
+	@GetMapping("/manage")
+	@PreAuthorize("hasRole('ADMIN')")
+	public Page<PlaceDTO> manage(
+			@RequestParam(required = false) String query,
+			@RequestParam(required = false) String category,
+			@RequestParam(required = false) Boolean active,
+			Pageable pageable) {
+		return placeService.searchManaged(query, category, active, pageable);
 	}
 
 	@GetMapping("/{placeId}")

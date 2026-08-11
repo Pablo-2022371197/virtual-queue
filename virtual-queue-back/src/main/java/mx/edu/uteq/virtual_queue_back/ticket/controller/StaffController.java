@@ -3,9 +3,10 @@ package mx.edu.uteq.virtual_queue_back.ticket.controller;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -17,8 +18,9 @@ import jakarta.validation.Valid;
 import mx.edu.uteq.virtual_queue_back.common.TicketStatus;
 import mx.edu.uteq.virtual_queue_back.place.dto.PlaceDTO;
 import mx.edu.uteq.virtual_queue_back.ticket.dto.AcceptTicketRequest;
+import mx.edu.uteq.virtual_queue_back.ticket.dto.ClaimCounterRequest;
+import mx.edu.uteq.virtual_queue_back.ticket.dto.CounterClaimStateDTO;
 import mx.edu.uteq.virtual_queue_back.ticket.dto.TicketDTO;
-import mx.edu.uteq.virtual_queue_back.ticket.dto.UpdateQueueSettingsRequest;
 import mx.edu.uteq.virtual_queue_back.ticket.service.TicketService;
 
 @RestController
@@ -37,11 +39,36 @@ public class StaffController {
 		return ticketService.getStaffAssignedPlace();
 	}
 
+	@GetMapping("/counters")
+	public CounterClaimStateDTO getCounters() {
+		return ticketService.getCounterState();
+	}
+
+	@PostMapping("/counters/claim")
+	public CounterClaimStateDTO claimCounter(@Valid @RequestBody ClaimCounterRequest request) {
+		return ticketService.claimCounter(request);
+	}
+
+	@DeleteMapping("/counters/claim")
+	public ResponseEntity<Void> releaseCounter() {
+		ticketService.releaseCounter();
+		return ResponseEntity.noContent().build();
+	}
+
 	@GetMapping("/queues/{queueId}/tickets")
 	public List<TicketDTO> listTickets(
 			@PathVariable UUID queueId,
 			@RequestParam(defaultValue = "WAITING") TicketStatus status) {
 		return ticketService.listByQueueAndStatus(queueId, status);
+	}
+
+	@GetMapping("/queues/{queueId}/last-dismissed")
+	public ResponseEntity<TicketDTO> lastDismissed(@PathVariable UUID queueId) {
+		TicketDTO ticket = ticketService.getLastDismissed(queueId);
+		if (ticket == null) {
+			return ResponseEntity.noContent().build();
+		}
+		return ResponseEntity.ok(ticket);
 	}
 
 	@PostMapping("/queues/{queueId}/call-next")
@@ -69,10 +96,5 @@ public class StaffController {
 	@PostMapping("/tickets/{ticketId}/expire")
 	public TicketDTO expire(@PathVariable UUID ticketId) {
 		return ticketService.expire(ticketId);
-	}
-
-	@PatchMapping("/queues/{queueId}")
-	public void updateQueue(@PathVariable UUID queueId, @Valid @RequestBody UpdateQueueSettingsRequest request) {
-		ticketService.updateQueueSettings(queueId, request);
 	}
 }

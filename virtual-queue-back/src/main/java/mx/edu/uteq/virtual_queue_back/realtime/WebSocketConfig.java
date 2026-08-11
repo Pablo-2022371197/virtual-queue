@@ -46,9 +46,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 	@Override
 	public void registerStompEndpoints(StompEndpointRegistry registry) {
 		List<String> origins = List.of(allowedOrigins.split(","));
-		registry.addEndpoint("/ws")
-				.setAllowedOrigins(origins.toArray(String[]::new))
-				.withSockJS();
+		String[] allowed = origins.stream().map(String::trim).filter(s -> !s.isEmpty()).toArray(String[]::new);
+
+		// Native WebSocket for Flutter Wear / mobile clients.
+		registry.addEndpoint("/ws").setAllowedOrigins(allowed);
+		// SockJS for the web SPA.
+		registry.addEndpoint("/ws").setAllowedOrigins(allowed).withSockJS();
 	}
 
 	@Override

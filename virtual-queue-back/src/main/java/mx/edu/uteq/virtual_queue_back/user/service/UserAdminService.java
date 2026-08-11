@@ -52,6 +52,8 @@ public class UserAdminService {
 				user.getFullName(),
 				user.getRole(),
 				place != null ? place.getId() : null,
-				place != null ? place.getName() : null);
+				place != null ? place.getName() : null,
+				user.getClaimedCounter(),
+				mx.edu.uteq.virtual_queue_back.common.CounterLabels.toLabel(user.getClaimedCounter()));
 	}
 }

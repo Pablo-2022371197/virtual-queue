@@ -1,30 +1,34 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Alert,
   Button,
   Card,
   Chip,
-  Input,
+  Description,
   Label,
   Modal,
+  Radio,
+  RadioGroup,
   Spinner,
-  TextField,
 } from '@heroui/react'
 import { getPlaceQueue, searchPlaces } from '../../shared/api/places'
 import {
   acceptTicket,
   callNextTicket,
+  claimStaffCounter,
   completeTicket,
   expireTicket,
+  getLastDismissedTicket,
+  getStaffCounters,
   getStaffPlace,
   listQueueTickets,
   startTicket,
-  updateQueueSettings,
 } from '../../shared/api/staff'
 import { TicketStatusChip } from '../tickets/TicketStatusChip'
 import { useAuth } from '../auth/useAuth'
 import { ApiError } from '../../shared/api/client'
+import { counterLabel } from '../../shared/format/counterLabel'
 import type { Ticket, TicketStatus } from '../../shared/types/api'
 
 const STATUS_FILTERS: TicketStatus[] = ['WAITING', 'NEARLY', 'CALLED', 'SERVING']
@@ -43,11 +47,12 @@ export default function StaffQueuePage() {
   const queryClient = useQueryClient()
   const { hasRole } = useAuth()
   const isAdmin = hasRole('ADMIN')
+  const isStaff = hasRole('STAFF') && !isAdmin
 
   const { data: staffPlace, isLoading: staffPlaceLoading } = useQuery({
     queryKey: ['staff', 'place'],
     queryFn: getStaffPlace,
-    enabled: !isAdmin,
+    enabled: isStaff,
   })
 
   const { data: placesPage, isLoading: placesLoading } = useQuery({
@@ -68,29 +73,85 @@ export default function StaffQueuePage() {
     enabled: !!activePlaceId,
   })
 
+  const {
+    data: counterState,
+    isLoading: countersLoading,
+    refetch: refetchCounters,
+  } = useQuery({
+    queryKey: ['staff', 'counters'],
+    queryFn: getStaffCounters,
+    enabled: isStaff,
+    refetchInterval: 15_000,
+  })
+
   const [statusFilter, setStatusFilter] = useState<TicketStatus>('WAITING')
-  const [openCounters, setOpenCounters] = useState('')
-  const [avgMinutes, setAvgMinutes] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
-  const [acceptTarget, setAcceptTarget] = useState<Ticket | null>(null)
-  const [selectedCounter, setSelectedCounter] = useState('1')
+  const [claimSelection, setClaimSelection] = useState<string>('')
+  const [claimOpen, setClaimOpen] = useState(false)
+
+  const needsClaim =
+    isStaff &&
+    !!counterState &&
+    counterState.claimedCounter == null
+
+  useEffect(() => {
+    if (!counterState || !isStaff) return
+
+    if (counterState.claimedCounter != null) {
+      setClaimOpen(false)
+      setClaimSelection(String(counterState.claimedCounter))
+      return
+    }
+
+    if (counterState.totalCounters <= 1) {
+      const only = counterState.counters.find((c) => !c.occupied || c.claimedByMe)
+      if (only) {
+        claimStaffCounter(only.number)
+          .then(() => {
+            queryClient.invalidateQueries({ queryKey: ['staff', 'counters'] })
+          })
+          .catch((err) =>
+            setActionError(
+              err instanceof ApiError ? err.message : 'No se pudo asignar la caja',
+            ),
+          )
+        return
+      }
+    }
+
+    const firstFree = counterState.counters.find((c) => !c.occupied)?.number
+    setClaimSelection(firstFree != null ? String(firstFree) : '')
+    setClaimOpen(true)
+  }, [counterState, isStaff, queryClient])
 
   const { data: tickets = [], isLoading: ticketsLoading } = useQuery({
     queryKey: ['staff', 'queue', queue?.id, statusFilter],
     queryFn: () => listQueueTickets(queue!.id, statusFilter),
-    enabled: !!queue?.id,
+    enabled: !!queue?.id && (!isStaff || !needsClaim),
     refetchInterval: 10_000,
   })
 
-  const counterOptions = useMemo(() => {
-    const count = queue?.openCounters ?? 1
-    return Array.from({ length: count }, (_, index) => index + 1)
-  }, [queue?.openCounters])
+  const { data: lastDismissed = null } = useQuery({
+    queryKey: ['staff', 'queue', queue?.id, 'last-dismissed'],
+    queryFn: () => getLastDismissedTicket(queue!.id),
+    enabled: !!queue?.id && (!isStaff || !needsClaim),
+    refetchInterval: 10_000,
+  })
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['staff'] })
     queryClient.invalidateQueries({ queryKey: ['places'] })
   }
+
+  const claimMutation = useMutation({
+    mutationFn: (counterNumber: number) => claimStaffCounter(counterNumber),
+    onSuccess: () => {
+      setClaimOpen(false)
+      invalidate()
+    },
+    onError: (err) =>
+      setActionError(err instanceof ApiError ? err.message : 'No se pudo reclamar la caja'),
+  })
 
   const callNext = useMutation({
     mutationFn: () => callNextTicket(queue!.id),
@@ -99,12 +160,8 @@ export default function StaffQueuePage() {
   })
 
   const accept = useMutation({
-    mutationFn: ({ ticketId, counter }: { ticketId: string; counter?: number }) =>
-      acceptTicket(ticketId, counter),
-    onSuccess: () => {
-      setAcceptTarget(null)
-      invalidate()
-    },
+    mutationFn: (ticketId: string) => acceptTicket(ticketId),
+    onSuccess: invalidate,
     onError: (err) =>
       setActionError(err instanceof ApiError ? err.message : 'Error al aceptar turno'),
   })
@@ -112,63 +169,54 @@ export default function StaffQueuePage() {
   const start = useMutation({
     mutationFn: (id: string) => startTicket(id),
     onSuccess: invalidate,
+    onError: (err) => setActionError(err instanceof ApiError ? err.message : 'Error al iniciar'),
   })
 
   const complete = useMutation({
     mutationFn: (id: string) => completeTicket(id),
     onSuccess: invalidate,
+    onError: (err) => setActionError(err instanceof ApiError ? err.message : 'Error al completar'),
   })
 
   const expire = useMutation({
     mutationFn: (id: string) => expireTicket(id),
     onSuccess: invalidate,
+    onError: (err) => setActionError(err instanceof ApiError ? err.message : 'Error al marcar ausente'),
   })
 
-  const updateSettings = useMutation({
-    mutationFn: () =>
-      updateQueueSettings(queue!.id, {
-        openCounters: openCounters ? Number(openCounters) : undefined,
-        averageServiceMinutes: avgMinutes ? Number(avgMinutes) : undefined,
-      }),
-    onSuccess: invalidate,
-  })
-
-  function handleAcceptClick(ticket: Ticket) {
-    setActionError(null)
-    if ((queue?.openCounters ?? 1) > 1) {
-      setSelectedCounter('1')
-      setAcceptTarget(ticket)
-      return
-    }
-    accept.mutate({ ticketId: ticket.id })
-  }
-
-  function confirmAccept() {
-    if (!acceptTarget) return
-    accept.mutate({
-      ticketId: acceptTarget.id,
-      counter: Number(selectedCounter),
-    })
-  }
-
-  const isLoading = (isAdmin ? placesLoading : staffPlaceLoading) || queueLoading
+  const isLoading =
+    (isAdmin ? placesLoading : staffPlaceLoading) || queueLoading || (isStaff && countersLoading)
   const placeName = isAdmin
     ? places.find((place) => place.id === activePlaceId)?.name
     : staffPlace?.name
 
+  const totalBoxes = queue?.totalCounters ?? queue?.openCounters ?? 1
+  const claimedCode =
+    counterState?.claimedCode ??
+    (counterState?.claimedCounter != null
+      ? counterLabel(counterState.claimedCounter)
+      : null)
+
   return (
     <section className="flex flex-col gap-6">
-      <header>
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          Panel de personal
-        </h1>
-        <p className="mt-0.5 text-sm text-muted">
-          {isAdmin
-            ? 'Opera la fila del establecimiento seleccionado.'
-            : placeName
-              ? `Establecimiento asignado: ${placeName}`
-              : 'Cargando establecimiento asignado…'}
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">
+            Panel de personal
+          </h1>
+          <p className="mt-0.5 text-sm text-muted">
+            {isAdmin
+              ? 'Opera la fila del establecimiento seleccionado.'
+              : placeName
+                ? `Establecimiento asignado: ${placeName}`
+                : 'Cargando establecimiento asignado…'}
+          </p>
+        </div>
+        {isStaff && claimedCode && (
+          <Chip color="accent" variant="soft">
+            Tu caja: {claimedCode}
+          </Chip>
+        )}
       </header>
 
       {isLoading && (
@@ -177,7 +225,7 @@ export default function StaffQueuePage() {
         </div>
       )}
 
-      {!isAdmin && !staffPlaceLoading && !staffPlace && (
+      {isStaff && !staffPlaceLoading && !staffPlace && (
         <Alert status="warning">
           Tu usuario STAFF no tiene un establecimiento asignado. Contacta al administrador.
         </Alert>
@@ -205,45 +253,24 @@ export default function StaffQueuePage() {
       {queue && (
         <Card>
           <Card.Header>
-            <Card.Title>Configuración de fila</Card.Title>
+            <Card.Title>Fila del establecimiento</Card.Title>
             <Card.Description>
-              Prefijo {queue.prefix} · {queue.openCounters} ventanilla(s) · ~
-              {queue.averageServiceMinutes} min/turno
+              Prefijo {queue.prefix} · {totalBoxes} caja(s) · ~
+              {queue.averageServiceMinutes} min/turno (promedio real)
+              {queue.openCounters != null && (
+                <> · {queue.openCounters} atendiendo ahora</>
+              )}
             </Card.Description>
           </Card.Header>
-          <Card.Content className="flex flex-col gap-4 sm:flex-row sm:items-end">
-            <TextField
-              name="openCounters"
-              fullWidth
-              value={openCounters}
-              onChange={setOpenCounters}
-            >
-              <Label>Ventanillas abiertas</Label>
-              <Input placeholder={String(queue.openCounters)} type="number" />
-            </TextField>
-            <TextField
-              name="avgMinutes"
-              fullWidth
-              value={avgMinutes}
-              onChange={setAvgMinutes}
-            >
-              <Label>Minutos promedio</Label>
-              <Input placeholder={String(queue.averageServiceMinutes)} type="number" />
-            </TextField>
-            <Button
-              variant="secondary"
-              onPress={() => updateSettings.mutate()}
-              isDisabled={updateSettings.isPending}
-            >
-              Guardar
-            </Button>
-          </Card.Content>
           <Card.Footer>
             <Button
               variant="primary"
-              fullWidth
-              onPress={() => callNext.mutate()}
-              isDisabled={callNext.isPending}
+              className="w-full"
+              onPress={() => {
+                setActionError(null)
+                callNext.mutate()
+              }}
+              isDisabled={callNext.isPending || (isStaff && needsClaim)}
             >
               {callNext.isPending ? <Spinner size="sm" color="current" /> : 'Llamar siguiente turno'}
             </Button>
@@ -252,6 +279,16 @@ export default function StaffQueuePage() {
       )}
 
       {actionError && <Alert status="danger">{actionError}</Alert>}
+
+      {lastDismissed && (
+        <Alert status={lastDismissed.status === 'CANCELLED' ? 'warning' : 'accent'}>
+          Último turno saltado: <strong>{lastDismissed.number}</strong>
+          {' — '}
+          {lastDismissed.status === 'CANCELLED'
+            ? 'Cancelado por el cliente'
+            : 'Marcado como ausente'}
+        </Alert>
+      )}
 
       <div className="flex flex-wrap gap-2">
         {STATUS_FILTERS.map((status) => (
@@ -272,9 +309,9 @@ export default function StaffQueuePage() {
               <div>
                 <p className="font-semibold text-foreground">{ticket.number}</p>
                 <p className="text-xs text-muted">Posición {ticket.position}</p>
-                {ticket.counterNumber != null && (
+                {(ticket.counterLabel || ticket.counterNumber != null) && (
                   <Chip size="sm" variant="soft" color="accent" className="mt-1">
-                    Ventanilla {ticket.counterNumber}
+                    Caja {ticket.counterLabel ?? counterLabel(ticket.counterNumber)}
                   </Chip>
                 )}
               </div>
@@ -284,26 +321,44 @@ export default function StaffQueuePage() {
                   <Button
                     size="sm"
                     variant="primary"
-                    onPress={() => handleAcceptClick(ticket)}
-                    isDisabled={accept.isPending}
+                    onPress={() => {
+                      setActionError(null)
+                      accept.mutate(ticket.id)
+                    }}
+                    isDisabled={accept.isPending || (isStaff && needsClaim)}
                   >
                     Aceptar
                   </Button>
                 )}
                 {ticket.status === 'CALLED' && (
-                  <Button size="sm" variant="primary" onPress={() => start.mutate(ticket.id)}>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onPress={() => start.mutate(ticket.id)}
+                    isDisabled={isStaff && needsClaim}
+                  >
                     Iniciar
                   </Button>
                 )}
                 {ticket.status === 'SERVING' && (
-                  <Button size="sm" variant="primary" onPress={() => complete.mutate(ticket.id)}>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onPress={() => complete.mutate(ticket.id)}
+                    isDisabled={isStaff && needsClaim}
+                  >
                     Completar
                   </Button>
                 )}
                 {(ticket.status === 'CALLED' ||
                   ticket.status === 'WAITING' ||
                   ticket.status === 'NEARLY') && (
-                  <Button size="sm" variant="danger" onPress={() => expire.mutate(ticket.id)}>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onPress={() => expire.mutate(ticket.id)}
+                    isDisabled={isStaff && needsClaim}
+                  >
                     Ausente
                   </Button>
                 )}
@@ -311,51 +366,77 @@ export default function StaffQueuePage() {
             </Card.Content>
           </Card>
         ))}
-        {!ticketsLoading && tickets.length === 0 && (
+        {!ticketsLoading && !needsClaim && tickets.length === 0 && (
           <Alert status="accent">No hay turnos con estado {statusFilter}.</Alert>
         )}
       </div>
 
-      <Modal.Backdrop isOpen={acceptTarget != null} onOpenChange={() => setAcceptTarget(null)}>
+      <Modal.Backdrop
+        isOpen={claimOpen}
+        isDismissable={false}
+        onOpenChange={() => {
+          /* obligatorio: no cerrar sin claim */
+        }}
+      >
         <Modal.Container>
-          <Modal.Dialog className="max-w-sm">
-            <Modal.CloseTrigger />
+          <Modal.Dialog className="max-w-md">
             <Modal.Header>
-              <Modal.Heading>Seleccionar ventanilla</Modal.Heading>
+              <Modal.Heading>Seleccionar caja</Modal.Heading>
             </Modal.Header>
             <Modal.Body className="flex flex-col gap-4">
               <p className="text-sm text-muted">
-                Turno {acceptTarget?.number}. Elige la ventanilla donde atenderás al cliente.
+                Elige la caja que atenderás en esta sesión. Quedará fija hasta que cierres
+                sesión.
               </p>
-              <TextField
-                name="counter"
-                isRequired
-                fullWidth
-                value={selectedCounter}
-                onChange={setSelectedCounter}
+              <RadioGroup
+                name="staff-counter"
+                orientation="horizontal"
+                value={claimSelection}
+                onChange={setClaimSelection}
               >
-                <Label>Ventanilla</Label>
-                <Input type="number" min={1} max={queue?.openCounters ?? 1} />
-              </TextField>
-              <div className="flex flex-wrap gap-2">
-                {counterOptions.map((counter) => (
-                  <Button
-                    key={counter}
-                    size="sm"
-                    variant={selectedCounter === String(counter) ? 'primary' : 'secondary'}
-                    onPress={() => setSelectedCounter(String(counter))}
+                <Label>Cajas disponibles</Label>
+                {counterState?.counters.map((slot) => (
+                  <Radio
+                    key={slot.number}
+                    value={String(slot.number)}
+                    isDisabled={slot.occupied && !slot.claimedByMe}
                   >
-                    {counter}
-                  </Button>
+                    <Radio.Content>
+                      <Radio.Control>
+                        <Radio.Indicator />
+                      </Radio.Control>
+                      Caja {slot.code}
+                    </Radio.Content>
+                    {slot.occupied && !slot.claimedByMe && (
+                      <Description>
+                        Ocupada{slot.occupiedBy ? ` · ${slot.occupiedBy}` : ''}
+                      </Description>
+                    )}
+                  </Radio>
                 ))}
-              </div>
+              </RadioGroup>
+              <Button
+                variant="secondary"
+                size="sm"
+                onPress={() => refetchCounters()}
+              >
+                Actualizar disponibilidad
+              </Button>
             </Modal.Body>
             <Modal.Footer>
-              <Button variant="tertiary" onPress={() => setAcceptTarget(null)}>
-                Cancelar
-              </Button>
-              <Button variant="primary" onPress={confirmAccept} isDisabled={accept.isPending}>
-                {accept.isPending ? <Spinner size="sm" color="current" /> : 'Confirmar'}
+              <Button
+                variant="primary"
+                isDisabled={!claimSelection || claimMutation.isPending}
+                onPress={() => {
+                  setActionError(null)
+                  claimMutation.mutate(Number(claimSelection))
+                }}
+              >
+                {claimMutation.isPending ? (
+                  <Spinner size="sm" color="current" />
+                ) : (
+                  'Confirmar caja'
+                )}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>

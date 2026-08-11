@@ -22,6 +22,7 @@ android {
         }
         create("wear") {
             dimension = "app"
+            minSdk = 25
         }
     }
 
@@ -52,4 +53,5 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    implementation("androidx.wear:wear-input:1.1.0")
 }

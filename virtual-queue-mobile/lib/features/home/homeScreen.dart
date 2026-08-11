@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_service.dart';
+import '../../core/format/datetime.dart';
+import '../../core/format/counter_label.dart';
 import '../../models/ticket.dart';
 import '../../providers/active_ticket_provider.dart';
 
@@ -134,12 +136,14 @@ class _TicketCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text('Posición: ${ticket.position}'),
             Text('Estimado: ${ticket.estimatedMinutes} min'),
+            if (ticket.issuedAt != null && ticket.issuedAt!.isNotEmpty)
+              Text('Expedido: ${formatDateTime(ticket.issuedAt)}'),
             Text('Estado: ${ticketStatusLabel(ticket.status)}'),
             if (ticket.counterNumber != null &&
                 (ticket.status == TicketStatus.called ||
                     ticket.status == TicketStatus.serving))
               Text(
-                'Ventanilla: ${ticket.counterNumber}',
+                'Caja: ${counterDisplay(ticket.counterNumber, ticket.counterLabel)}',
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             const SizedBox(height: 16),

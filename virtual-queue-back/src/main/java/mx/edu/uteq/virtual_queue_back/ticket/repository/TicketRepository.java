@@ -60,6 +60,38 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID> {
 	boolean existsByQueueIdAndUserIdAndStatusIn(UUID queueId, UUID userId, Collection<TicketStatus> statuses);
 
 	@Query("""
+			SELECT CASE WHEN COUNT(t) > 0 THEN true ELSE false END
+			FROM Ticket t
+			WHERE t.user.id = :userId
+			  AND t.queue.place.id = :placeId
+			  AND t.status IN :activeStatuses
+			""")
+	boolean existsActiveByUserIdAndPlaceId(
+			@Param("userId") UUID userId,
+			@Param("placeId") UUID placeId,
+			@Param("activeStatuses") Collection<TicketStatus> activeStatuses);
+
+	@Query("""
+			SELECT CASE WHEN COUNT(t) > 0 THEN true ELSE false END
+			FROM Ticket t
+			WHERE t.user.id = :userId AND t.queue.place.id = :placeId
+			""")
+	boolean existsByUserIdAndPlaceId(
+			@Param("userId") UUID userId,
+			@Param("placeId") UUID placeId);
+
+	@Query(value = """
+			SELECT AVG(EXTRACT(EPOCH FROM (completed_at - service_started_at)) / 60.0)
+			FROM tickets
+			WHERE queue_id = :queueId
+			  AND status = 'COMPLETED'
+			  AND service_started_at IS NOT NULL
+			  AND completed_at IS NOT NULL
+			  AND completed_at > service_started_at
+			""", nativeQuery = true)
+	Double averageServiceMinutes(@Param("queueId") UUID queueId);
+
+	@Query("""
 			SELECT t FROM Ticket t
 			JOIN FETCH t.queue q
 			JOIN FETCH q.place
@@ -69,4 +101,7 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID> {
 	Optional<Ticket> findByIdWithDetails(@Param("id") UUID id);
 
 	Optional<Ticket> findFirstByQueueIdAndStatusInOrderBySequenceAsc(UUID queueId, Collection<TicketStatus> statuses);
+
+	Optional<Ticket> findFirstByQueueIdAndStatusInOrderByCancelledAtDescIssuedAtDesc(
+			UUID queueId, Collection<TicketStatus> statuses);
 }

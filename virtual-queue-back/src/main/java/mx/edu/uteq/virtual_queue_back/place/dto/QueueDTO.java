@@ -8,5 +8,6 @@ public record QueueDTO(
 		String prefix,
 		int averageServiceMinutes,
 		int openCounters,
+		int totalCounters,
 		boolean active) {
 }

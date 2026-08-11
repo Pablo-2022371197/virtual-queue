@@ -1,5 +1,6 @@
 package mx.edu.uteq.virtual_queue_back.ticket.mapper;
 
+import mx.edu.uteq.virtual_queue_back.common.CounterLabels;
 import mx.edu.uteq.virtual_queue_back.ticket.dto.TicketDTO;
 import mx.edu.uteq.virtual_queue_back.ticket.entity.Ticket;
 
@@ -9,6 +10,7 @@ public final class TicketMapper {
 	}
 
 	public static TicketDTO toDto(Ticket ticket, int position, int estimatedMinutes) {
+		Integer counter = ticket.getCounterNumber();
 		return new TicketDTO(
 				ticket.getId(),
 				ticket.getQueue().getPlace().getId(),
@@ -18,6 +20,7 @@ public final class TicketMapper {
 				estimatedMinutes,
 				ticket.getStatus(),
 				ticket.getIssuedAt(),
-				ticket.getCounterNumber());
+				counter,
+				CounterLabels.toLabel(counter));
 	}
 }

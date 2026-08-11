@@ -1,15 +1,20 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Alert, Card, Chip, Spinner } from '@heroui/react'
 import DashboardStats from './place/DashboardStats'
-import { usePlaces } from '../hooks/usePlaces'
+import { getExperiencedPlaces } from '../shared/api/places'
 import { usePlaceStats } from '../hooks/usePlace'
 import { usePlaceStatsSocket } from '../shared/realtime/useQueueSocket'
 import { ConnectionStatus } from '../shared/components/ConnectionStatus'
 import { useQueueSocket } from '../shared/realtime/useQueueSocket'
+import { useAuth } from '../features/auth/useAuth'
 
 export default function StatsPage() {
-  const { data: placesPage, isLoading } = usePlaces({ size: 50 })
-  const places = placesPage?.content ?? []
+  const { hasRole } = useAuth()
+  const { data: places = [], isLoading } = useQuery({
+    queryKey: ['places', 'experienced'],
+    queryFn: getExperiencedPlaces,
+  })
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | undefined>()
   const activePlaceId = selectedPlaceId ?? places[0]?.id
 
@@ -19,6 +24,12 @@ export default function StatsPage() {
 
   const selectedPlace = places.find((p) => p.id === activePlaceId)
 
+  const emptyMessage = hasRole('STAFF')
+    ? 'Tu usuario de personal no tiene un establecimiento asignado.'
+    : hasRole('ADMIN')
+      ? 'No hay establecimientos registrados.'
+      : 'Aún no has pedido turno en ningún establecimiento. Las estadísticas aparecerán aquí después de tu primera visita.'
+
   return (
     <section className="flex flex-col gap-6">
       <header className="flex items-start justify-between gap-4">
@@ -27,7 +38,11 @@ export default function StatsPage() {
             Herramientas estadísticas
           </h1>
           <p className="mt-0.5 text-sm text-muted">
-            Métricas en tiempo real del establecimiento seleccionado.
+            {hasRole('STAFF')
+              ? 'Métricas en vivo de tu establecimiento asignado.'
+              : hasRole('ADMIN')
+                ? 'Métricas en tiempo real de cualquier establecimiento.'
+                : 'Solo ves establecimientos donde has pedido un turno.'}
           </p>
         </div>
         <ConnectionStatus connected={connected} />
@@ -41,7 +56,7 @@ export default function StatsPage() {
       )}
 
       {!isLoading && places.length === 0 && (
-        <Alert status="warning">No hay establecimientos disponibles.</Alert>
+        <Alert status="warning">{emptyMessage}</Alert>
       )}
 
       {places.length > 0 && (
@@ -93,7 +108,7 @@ export default function StatsPage() {
               </Card>
               <Card>
                 <Card.Content className="flex flex-col gap-1 py-2">
-                  <span className="text-xs text-muted">Ventanillas abiertas</span>
+                  <span className="text-xs text-muted">Cajas atendiendo</span>
                   <span className="text-2xl font-bold text-foreground">
                     {stats.openCounters}
                   </span>

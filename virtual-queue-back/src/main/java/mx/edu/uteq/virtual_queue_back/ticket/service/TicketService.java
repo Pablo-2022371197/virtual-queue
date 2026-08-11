@@ -1,7 +1,11 @@
 package mx.edu.uteq.virtual_queue_back.ticket.service;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -9,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import mx.edu.uteq.virtual_queue_back.common.BusinessException;
+import mx.edu.uteq.virtual_queue_back.common.CounterLabels;
 import mx.edu.uteq.virtual_queue_back.common.ErrorCode;
 import mx.edu.uteq.virtual_queue_back.common.TicketStatus;
 import mx.edu.uteq.virtual_queue_back.common.UserRole;
@@ -24,8 +29,10 @@ import mx.edu.uteq.virtual_queue_back.realtime.RealtimeEventPublisher;
 import mx.edu.uteq.virtual_queue_back.security.SecurityUtils;
 import mx.edu.uteq.virtual_queue_back.security.UserPrincipal;
 import mx.edu.uteq.virtual_queue_back.ticket.dto.AcceptTicketRequest;
+import mx.edu.uteq.virtual_queue_back.ticket.dto.ClaimCounterRequest;
+import mx.edu.uteq.virtual_queue_back.ticket.dto.CounterClaimStateDTO;
+import mx.edu.uteq.virtual_queue_back.ticket.dto.CounterSlotDTO;
 import mx.edu.uteq.virtual_queue_back.ticket.dto.TicketDTO;
-import mx.edu.uteq.virtual_queue_back.ticket.dto.UpdateQueueSettingsRequest;
 import mx.edu.uteq.virtual_queue_back.ticket.entity.Ticket;
 import mx.edu.uteq.virtual_queue_back.ticket.mapper.TicketMapper;
 import mx.edu.uteq.virtual_queue_back.ticket.repository.TicketRepository;
@@ -60,11 +67,13 @@ public class TicketService {
 	@Transactional
 	public TicketDTO takeTicket(UUID placeId) {
 		UserPrincipal principal = SecurityUtils.currentUser();
-		User user = userRepository.findById(principal.getId()).orElseThrow();
-
-		if (ticketRepository.findActiveByUserId(user.getId(), TicketStatus.ACTIVE).isPresent()) {
-			throw new BusinessException(ErrorCode.ACTIVE_TICKET_EXISTS, "User already has an active ticket");
+		if (principal.getRole() != UserRole.CUSTOMER) {
+			throw new BusinessException(
+					ErrorCode.FORBIDDEN,
+					"Only customers can take tickets",
+					HttpStatus.FORBIDDEN);
 		}
+		User user = userRepository.findById(principal.getId()).orElseThrow();
 
 		var place = placeService.findPlace(placeId);
 		if (!place.isActive()) {
@@ -79,8 +88,15 @@ public class TicketService {
 			throw new BusinessException(ErrorCode.QUEUE_NOT_ACTIVE, "Queue is not active");
 		}
 
-		if (ticketRepository.existsByQueueIdAndUserIdAndStatusIn(queue.getId(), user.getId(), TicketStatus.ACTIVE)) {
-			throw new BusinessException(ErrorCode.QUEUE_ALREADY_JOINED, "Already in this queue");
+		if (ticketRepository.existsActiveByUserIdAndPlaceId(user.getId(), placeId, TicketStatus.ACTIVE)) {
+			throw new BusinessException(
+					ErrorCode.QUEUE_ALREADY_JOINED, "User already has an active ticket at this place");
+		}
+
+		Optional<Ticket> activeTicket =
+				ticketRepository.findActiveByUserId(user.getId(), TicketStatus.ACTIVE);
+		if (activeTicket.isPresent()) {
+			throw new BusinessException(ErrorCode.ACTIVE_TICKET_EXISTS, "User already has an active ticket");
 		}
 
 		ServiceQueue lockedQueue = queueRepository.findByIdForUpdate(queue.getId()).orElseThrow();
@@ -125,11 +141,20 @@ public class TicketService {
 			throw new BusinessException(ErrorCode.FORBIDDEN, "Cannot cancel another user's ticket", HttpStatus.FORBIDDEN);
 		}
 
+		TicketStatus previous = ticket.getStatus();
+		UUID queueId = ticket.getQueue().getId();
+		User assignedStaff = ticket.getAssignedStaff();
+
 		transition(ticket, TicketStatus.CANCELLED);
 		ticket.setCancelledAt(Instant.now());
 		ticketRepository.save(ticket);
-		updateNearlyStatus(ticket.getQueue().getId());
-		return publishChanges(ticket);
+		updateNearlyStatus(queueId);
+		TicketDTO dto = publishChanges(ticket);
+
+		if (previous == TicketStatus.CALLED) {
+			advanceNextInQueue(queueId, assignedStaff);
+		}
+		return dto;
 	}
 
 	public List<TicketDTO> listByQueueAndStatus(UUID queueId, TicketStatus status) {
@@ -137,6 +162,16 @@ public class TicketService {
 		return ticketRepository.findByQueueIdAndStatusWithDetails(queueId, status).stream()
 				.map(this::toDtoWithMetrics)
 				.toList();
+	}
+
+	public TicketDTO getLastDismissed(UUID queueId) {
+		assertStaffCanAccessQueue(queueId);
+		return ticketRepository
+				.findFirstByQueueIdAndStatusInOrderByCancelledAtDescIssuedAtDesc(
+						queueId, List.of(TicketStatus.CANCELLED, TicketStatus.EXPIRED))
+				.flatMap(ticket -> ticketRepository.findByIdWithDetails(ticket.getId()))
+				.map(this::toDtoWithMetrics)
+				.orElse(null);
 	}
 
 	public PlaceDTO getStaffAssignedPlace() {
@@ -150,25 +185,97 @@ public class TicketService {
 			throw new BusinessException(
 					ErrorCode.RESOURCE_NOT_FOUND, "Staff user has no assigned place", HttpStatus.NOT_FOUND);
 		}
-		return PlaceMapper.toDto(place);
+		int total = queueRepository.findByPlaceId(place.getId())
+				.map(ServiceQueue::getOpenCounters)
+				.orElse(1);
+		return PlaceMapper.toDto(place, total);
+	}
+
+	public CounterClaimStateDTO getCounterState() {
+		User staff = requireStaffWithPlace();
+		Place place = staff.getPlace();
+		ServiceQueue queue = queueRepository.findByPlaceId(place.getId())
+				.orElseThrow(() -> new BusinessException(
+						ErrorCode.RESOURCE_NOT_FOUND, "Queue not found", HttpStatus.NOT_FOUND));
+
+		int total = Math.max(queue.getOpenCounters(), 1);
+		Map<Integer, User> occupied = new HashMap<>();
+		for (User other : userRepository.findByPlaceIdAndClaimedCounterIsNotNull(place.getId())) {
+			if (other.getClaimedCounter() != null) {
+				occupied.put(other.getClaimedCounter(), other);
+			}
+		}
+
+		List<CounterSlotDTO> slots = new ArrayList<>(total);
+		for (int i = 1; i <= total; i++) {
+			User holder = occupied.get(i);
+			boolean mine = holder != null && holder.getId().equals(staff.getId());
+			boolean occupiedByOther = holder != null && !mine;
+			slots.add(new CounterSlotDTO(
+					i,
+					CounterLabels.toLabel(i),
+					occupiedByOther || mine,
+					holder != null ? holder.getFullName() : null,
+					mine));
+		}
+
+		Integer claimed = staff.getClaimedCounter();
+		return new CounterClaimStateDTO(claimed, CounterLabels.toLabel(claimed), total, slots);
+	}
+
+	@Transactional
+	public CounterClaimStateDTO claimCounter(ClaimCounterRequest request) {
+		User staff = requireStaffWithPlace();
+		Place place = staff.getPlace();
+		ServiceQueue queue = queueRepository.findByPlaceId(place.getId())
+				.orElseThrow(() -> new BusinessException(
+						ErrorCode.RESOURCE_NOT_FOUND, "Queue not found", HttpStatus.NOT_FOUND));
+
+		int total = Math.max(queue.getOpenCounters(), 1);
+		int counter = request.counterNumber();
+		if (counter < 1 || counter > total) {
+			throw new BusinessException(
+					ErrorCode.VALIDATION_ERROR,
+					"Counter number must be between 1 and " + total,
+					HttpStatus.BAD_REQUEST);
+		}
+
+		if (staff.getClaimedCounter() != null && staff.getClaimedCounter() == counter) {
+			return getCounterState();
+		}
+
+		if (userRepository.isCounterClaimedByOther(place.getId(), counter, staff.getId())) {
+			throw new BusinessException(
+					ErrorCode.COUNTER_ALREADY_CLAIMED,
+					"Counter is already claimed by another staff member",
+					HttpStatus.CONFLICT);
+		}
+
+		staff.setClaimedCounter(counter);
+		userRepository.save(staff);
+		return getCounterState();
+	}
+
+	@Transactional
+	public void releaseCounter() {
+		UserPrincipal principal = SecurityUtils.currentUser();
+		User user = userRepository.findById(principal.getId())
+				.orElseThrow(() -> new BusinessException(
+						ErrorCode.RESOURCE_NOT_FOUND, "User not found", HttpStatus.NOT_FOUND));
+		if (user.getClaimedCounter() != null) {
+			user.setClaimedCounter(null);
+			userRepository.save(user);
+		}
 	}
 
 	@Transactional
 	public TicketDTO callNext(UUID queueId) {
 		assertStaffCanAccessQueue(queueId);
-		Ticket ticket = ticketRepository
-				.findFirstByQueueIdAndStatusInOrderBySequenceAsc(queueId, List.of(TicketStatus.WAITING, TicketStatus.NEARLY))
+		User staff = currentStaffUser();
+		Integer claimed = requireClaimedCounter(staff);
+		return advanceNextInQueue(queueId, staff.getRole() == UserRole.STAFF ? staff : null, claimed)
 				.orElseThrow(() -> new BusinessException(
 						ErrorCode.RESOURCE_NOT_FOUND, "No tickets waiting", HttpStatus.NOT_FOUND));
-
-		User staff = currentStaffUser();
-		transition(ticket, TicketStatus.CALLED);
-		ticket.setCalledAt(Instant.now());
-		if (staff.getRole() == UserRole.STAFF) {
-			ticket.setAssignedStaff(staff);
-		}
-		ticketRepository.save(ticket);
-		return publishChanges(ticket);
 	}
 
 	@Transactional
@@ -184,10 +291,9 @@ public class TicketService {
 					HttpStatus.BAD_REQUEST);
 		}
 
-		ServiceQueue queue = ticket.getQueue();
-		Integer counterNumber = resolveCounterNumber(queue, request != null ? request.counterNumber() : null);
-
 		User staff = currentStaffUser();
+		Integer counterNumber = requireClaimedCounter(staff);
+
 		transition(ticket, TicketStatus.CALLED);
 		ticket.setCalledAt(Instant.now());
 		ticket.setCounterNumber(counterNumber);
@@ -201,10 +307,15 @@ public class TicketService {
 	@Transactional
 	public TicketDTO startService(UUID ticketId) {
 		assertStaff();
+		User staff = currentStaffUser();
+		requireClaimedCounter(staff);
 		Ticket ticket = findTicket(ticketId);
 		assertStaffCanAccessQueue(ticket.getQueue().getId());
 		transition(ticket, TicketStatus.SERVING);
 		ticket.setServiceStartedAt(Instant.now());
+		if (ticket.getCounterNumber() == null && staff.getClaimedCounter() != null) {
+			ticket.setCounterNumber(staff.getClaimedCounter());
+		}
 		ticketRepository.save(ticket);
 		return publishChanges(ticket);
 	}
@@ -212,6 +323,7 @@ public class TicketService {
 	@Transactional
 	public TicketDTO complete(UUID ticketId) {
 		assertStaff();
+		requireClaimedCounter(currentStaffUser());
 		Ticket ticket = findTicket(ticketId);
 		assertStaffCanAccessQueue(ticket.getQueue().getId());
 		transition(ticket, TicketStatus.COMPLETED);
@@ -226,28 +338,47 @@ public class TicketService {
 		assertStaff();
 		Ticket ticket = findTicket(ticketId);
 		assertStaffCanAccessQueue(ticket.getQueue().getId());
+
+		TicketStatus previous = ticket.getStatus();
+		UUID queueId = ticket.getQueue().getId();
+		User staff = currentStaffUser();
+		Integer claimed = requireClaimedCounter(staff);
+
 		transition(ticket, TicketStatus.EXPIRED);
 		ticket.setCancelledAt(Instant.now());
 		ticketRepository.save(ticket);
-		updateNearlyStatus(ticket.getQueue().getId());
-		return publishChanges(ticket);
+		updateNearlyStatus(queueId);
+		TicketDTO dto = publishChanges(ticket);
+
+		if (previous == TicketStatus.CALLED) {
+			advanceNextInQueue(queueId, staff.getRole() == UserRole.STAFF ? staff : null, claimed);
+		}
+		return dto;
 	}
 
-	@Transactional
-	public void updateQueueSettings(UUID queueId, UpdateQueueSettingsRequest request) {
-		assertStaffCanAccessQueue(queueId);
-		ServiceQueue queue = queueRepository.findByIdWithPlace(queueId)
-				.orElseThrow(() -> new BusinessException(
-						ErrorCode.RESOURCE_NOT_FOUND, "Queue not found", HttpStatus.NOT_FOUND));
+	private Optional<TicketDTO> advanceNextInQueue(UUID queueId, User assignedStaff) {
+		Integer counter = assignedStaff != null ? assignedStaff.getClaimedCounter() : null;
+		return advanceNextInQueue(queueId, assignedStaff, counter);
+	}
 
-		if (request.averageServiceMinutes() != null) {
-			queue.setAverageServiceMinutes(request.averageServiceMinutes());
+	private Optional<TicketDTO> advanceNextInQueue(UUID queueId, User assignedStaff, Integer counterNumber) {
+		Optional<Ticket> next = ticketRepository.findFirstByQueueIdAndStatusInOrderBySequenceAsc(
+				queueId, List.of(TicketStatus.WAITING, TicketStatus.NEARLY));
+		if (next.isEmpty()) {
+			return Optional.empty();
 		}
-		if (request.openCounters() != null) {
-			queue.setOpenCounters(request.openCounters());
+
+		Ticket ticket = next.get();
+		transition(ticket, TicketStatus.CALLED);
+		ticket.setCalledAt(Instant.now());
+		if (counterNumber != null) {
+			ticket.setCounterNumber(counterNumber);
 		}
-		queueRepository.save(queue);
-		publishStats(queue.getPlace().getId());
+		if (assignedStaff != null && assignedStaff.getRole() == UserRole.STAFF) {
+			ticket.setAssignedStaff(assignedStaff);
+		}
+		ticketRepository.save(ticket);
+		return Optional.of(publishChanges(ticket));
 	}
 
 	private TicketDTO publishChanges(Ticket ticket) {
@@ -259,7 +390,7 @@ public class TicketService {
 	}
 
 	private void publishStats(UUID placeId) {
-		PlaceStatsDTO stats = placeService.getStats(placeId);
+		PlaceStatsDTO stats = placeService.getStatsInternal(placeId);
 		realtimeEventPublisher.publishStats(placeId, stats);
 	}
 
@@ -286,8 +417,9 @@ public class TicketService {
 	}
 
 	private int calculateEstimatedMinutes(ServiceQueue queue, int position) {
-		return (int) Math.ceil(
-				(double) position * queue.getAverageServiceMinutes() / Math.max(queue.getOpenCounters(), 1));
+		int avg = placeService.resolveAverageServiceMinutes(queue);
+		int staffing = placeService.staffingCounters(queue.getPlace().getId());
+		return (int) Math.ceil((double) position * avg / Math.max(staffing, 1));
 	}
 
 	private void transition(Ticket ticket, TicketStatus target) {
@@ -365,23 +497,30 @@ public class TicketService {
 						ErrorCode.RESOURCE_NOT_FOUND, "User not found", HttpStatus.NOT_FOUND));
 	}
 
-	private Integer resolveCounterNumber(ServiceQueue queue, Integer requested) {
-		if (queue.getOpenCounters() <= 1) {
-			return null;
-		}
-		if (requested == null) {
+	private User requireStaffWithPlace() {
+		User staff = currentStaffUser();
+		if (staff.getRole() != UserRole.STAFF) {
 			throw new BusinessException(
-					ErrorCode.COUNTER_NUMBER_REQUIRED,
-					"Counter number is required when multiple counters are open",
-					HttpStatus.BAD_REQUEST);
+					ErrorCode.VALIDATION_ERROR, "Only staff can claim counters", HttpStatus.BAD_REQUEST);
 		}
-		if (requested < 1 || requested > queue.getOpenCounters()) {
+		if (staff.getPlace() == null) {
 			throw new BusinessException(
-					ErrorCode.VALIDATION_ERROR,
-					"Counter number must be between 1 and " + queue.getOpenCounters(),
-					HttpStatus.BAD_REQUEST);
+					ErrorCode.RESOURCE_NOT_FOUND, "Staff user has no assigned place", HttpStatus.NOT_FOUND);
 		}
-		return requested;
+		return staff;
+	}
+
+	private Integer requireClaimedCounter(User staff) {
+		if (staff.getRole() == UserRole.ADMIN) {
+			return staff.getClaimedCounter();
+		}
+		if (staff.getClaimedCounter() == null) {
+			throw new BusinessException(
+					ErrorCode.COUNTER_CLAIM_REQUIRED,
+					"Claim a counter before operating the queue",
+					HttpStatus.FORBIDDEN);
+		}
+		return staff.getClaimedCounter();
 	}
 
 	private Ticket findTicket(UUID ticketId) {

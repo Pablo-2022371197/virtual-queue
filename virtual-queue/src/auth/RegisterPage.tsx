@@ -35,7 +35,7 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false)
 
   if (status === 'authenticated' && !success) {
-    navigate('/home', { replace: true })
+    navigate(role === 'STAFF' ? '/staff' : '/home', { replace: true })
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {

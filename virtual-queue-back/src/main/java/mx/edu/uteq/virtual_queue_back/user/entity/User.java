@@ -55,4 +55,8 @@ public class User extends AuditableEntity {
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "place_id")
 	private Place place;
+
+	/** Claimed caja index (1=A, 2=B, …); null when not operating. */
+	@Column(name = "claimed_counter")
+	private Integer claimedCounter;
 }

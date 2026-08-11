@@ -1,17 +1,25 @@
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { Alert, Button, Card, Chip, Separator, Spinner } from '@heroui/react'
-import { Clock, MapPin, Ticket } from 'lucide-react'
+import { CalendarClock, Clock, MapPin, Ticket } from 'lucide-react'
 import { useMyTicket, useCancelTicket } from '../hooks/useMyTicket'
 import { TicketStatusChip } from '../features/tickets/TicketStatusChip'
 import { ConnectionStatus } from '../shared/components/ConnectionStatus'
+import { formatDateTime } from '../shared/format/datetime'
+import { counterLabel } from '../shared/format/counterLabel'
 import { useQueueSocket } from '../shared/realtime/useQueueSocket'
+import { useAuth } from '../features/auth/useAuth'
 import { useState } from 'react'
 
 export default function HomePage() {
+  const { hasRole } = useAuth()
   const { data: ticket, isLoading, isError } = useMyTicket()
   const cancelMutation = useCancelTicket()
   const { connected } = useQueueSocket()
   const [showConfirm, setShowConfirm] = useState(false)
+
+  if (hasRole('STAFF') && !hasRole('ADMIN')) {
+    return <Navigate to="/staff" replace />
+  }
 
   async function handleCancel() {
     if (!ticket) return
@@ -102,10 +110,20 @@ export default function HomePage() {
                 ~{ticket.estimatedMinutes} min
               </span>
             </div>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-sm text-muted">
+                <CalendarClock size={14} />
+                Expedido
+              </span>
+              <span className="text-sm font-medium text-foreground">
+                {formatDateTime(ticket.issuedAt)}
+              </span>
+            </div>
             {(ticket.status === 'CALLED' || ticket.status === 'SERVING') &&
               ticket.counterNumber != null && (
                 <Alert status="accent">
-                  Dirígete a la ventanilla {ticket.counterNumber}
+                  Dirígete a la caja{' '}
+                  {ticket.counterLabel ?? counterLabel(ticket.counterNumber)}
                 </Alert>
               )}
             <div className="flex items-center justify-between">

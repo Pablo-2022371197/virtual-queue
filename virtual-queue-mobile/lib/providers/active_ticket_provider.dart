@@ -99,7 +99,9 @@ class ActiveTicketNotifier extends StateNotifier<ActiveTicketState> {
       position: payload.position,
       estimatedMinutes: payload.estimatedMinutes,
       status: status,
+      issuedAt: state.ticket?.issuedAt,
       counterNumber: payload.counterNumber,
+      counterLabel: payload.counterLabel ?? state.ticket?.counterLabel,
     );
     state = ActiveTicketState(ticket: ticket);
     _syncWearable(ticket);
@@ -118,9 +120,11 @@ class ActiveTicketNotifier extends StateNotifier<ActiveTicketState> {
     );
     if (ticket.status == TicketStatus.nearly ||
         ticket.status == TicketStatus.called) {
-      final counterText = ticket.counterNumber != null
-          ? ' Ventanilla ${ticket.counterNumber}.'
-          : '';
+      final label = ticket.counterLabel ??
+          (ticket.counterNumber != null
+              ? String.fromCharCode(64 + ticket.counterNumber!)
+              : null);
+      final counterText = label != null ? ' Caja $label.' : '';
       await wearable.sendTurnAlert(
         'Tu turno ${ticket.number} está próximo.$counterText Posición: ${ticket.position}',
       );

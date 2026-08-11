@@ -10,5 +10,7 @@ public record UserSummaryDTO(
 		String fullName,
 		UserRole role,
 		UUID placeId,
-		String placeName) {
+		String placeName,
+		Integer claimedCounter,
+		String claimedCounterLabel) {
 }

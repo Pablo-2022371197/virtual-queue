@@ -17,11 +17,10 @@ const PrivacyPage = lazy(() => import('@public/pages/PrivacyPage'))
 const TermsPage = lazy(() => import('@public/pages/TermsPage'))
 const CookiesPage = lazy(() => import('@public/pages/CookiesPage'))
 const HomePage = lazy(() => import('./app/HomePage'))
-const SearchPage = lazy(() => import('./app/SearchPage'))
+const EstablecimientosRoute = lazy(() => import('./app/EstablecimientosRoute'))
 const PlaceQueuePage = lazy(() => import('./app/place/PlaceQueuePage'))
 const StatsPage = lazy(() => import('./app/StatsPage'))
 const StaffQueuePage = lazy(() => import('./features/staff/StaffQueuePage'))
-const AdminPlacesPage = lazy(() => import('./features/admin/AdminPlacesPage'))
 const SettingsPage = lazy(() => import('./features/settings/SettingsPage'))
 
 function PageLoader() {
@@ -53,7 +52,7 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<Layout />}>
             <Route path="/home" element={<HomePage />} />
-            <Route path="/search" element={<SearchPage />} />
+            <Route path="/search" element={<EstablecimientosRoute />} />
             <Route path="/place/:id/queue" element={<PlaceQueuePage />} />
             <Route path="/estadisticas" element={<StatsPage />} />
             <Route path="/cuenta" element={<SettingsPage />} />
@@ -63,7 +62,7 @@ export default function App() {
             </Route>
 
             <Route element={<RoleRoute roles={['ADMIN']} />}>
-              <Route path="/admin/places" element={<AdminPlacesPage />} />
+              <Route path="/admin/places" element={<Navigate to="/search" replace />} />
             </Route>
           </Route>
         </Route>

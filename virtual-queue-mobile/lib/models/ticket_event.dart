@@ -29,26 +29,30 @@ class TicketEventPayload {
   const TicketEventPayload({
     required this.id,
     required this.placeId,
+    required this.placeName,
     required this.number,
     required this.position,
     required this.estimatedMinutes,
     required this.status,
     this.counterNumber,
+    this.counterLabel,
   });
 
   final String id;
   final String placeId;
+  final String placeName;
   final String number;
   final int position;
   final int estimatedMinutes;
   final TicketStatus status;
   final int? counterNumber;
-  final int? counterNumber;
+  final String? counterLabel;
 
   factory TicketEventPayload.fromJson(Map<String, dynamic> json) {
     return TicketEventPayload(
       id: json['id']?.toString() ?? '',
       placeId: json['placeId']?.toString() ?? '',
+      placeName: json['placeName']?.toString() ?? '',
       number: json['number']?.toString() ?? '',
       position: json['position'] is int
           ? json['position'] as int
@@ -60,6 +64,7 @@ class TicketEventPayload {
       counterNumber: json['counterNumber'] is int
           ? json['counterNumber'] as int
           : int.tryParse(json['counterNumber']?.toString() ?? ''),
+      counterLabel: json['counterLabel']?.toString(),
     );
   }
 }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -23,6 +24,7 @@ class WearQueueState {
     this.estimatedMinutes = 0,
     this.status = TicketStatus.waiting,
     this.counterNumber,
+    this.issuedAt,
     this.alertMessage,
     this.updatedAt,
   });
@@ -35,6 +37,7 @@ class WearQueueState {
   final int estimatedMinutes;
   final TicketStatus status;
   final int? counterNumber;
+  final String? issuedAt;
   final String? alertMessage;
   final String? updatedAt;
 
@@ -47,6 +50,7 @@ class WearQueueState {
     int? estimatedMinutes,
     TicketStatus? status,
     int? counterNumber,
+    String? issuedAt,
     String? alertMessage,
     String? updatedAt,
     bool clearAlert = false,
@@ -60,6 +64,7 @@ class WearQueueState {
       estimatedMinutes: estimatedMinutes ?? this.estimatedMinutes,
       status: status ?? this.status,
       counterNumber: counterNumber ?? this.counterNumber,
+      issuedAt: issuedAt ?? this.issuedAt,
       alertMessage: clearAlert ? null : (alertMessage ?? this.alertMessage),
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -74,6 +79,7 @@ class WearQueueState {
         'estimatedMinutes': estimatedMinutes,
         'status': status.name.toUpperCase(),
         if (counterNumber != null) 'counterNumber': counterNumber,
+        if (issuedAt != null) 'issuedAt': issuedAt,
         'alertMessage': alertMessage,
         'updatedAt': updatedAt,
       };
@@ -97,6 +103,7 @@ class WearQueueState {
       counterNumber: json['counterNumber'] is int
           ? json['counterNumber'] as int
           : int.tryParse(json['counterNumber']?.toString() ?? ''),
+      issuedAt: json['issuedAt']?.toString(),
       alertMessage: json['alertMessage']?.toString(),
       updatedAt: json['updatedAt']?.toString(),
     );
@@ -105,17 +112,24 @@ class WearQueueState {
 
 class WearQueueNotifier extends StateNotifier<WearQueueState> {
   WearQueueNotifier(this._storage) : super(const WearQueueState()) {
-    _restore();
+    _ready = _restore();
   }
 
   static const _cacheKey = 'wear_last_queue_state';
   static const _ttl = Duration(hours: 2);
   final FlutterSecureStorage _storage;
+  late final Future<void> _ready;
+  bool _liveUpdateApplied = false;
+
+  Future<void> get ready => _ready;
 
   Future<void> _restore() async {
     final raw = await _storage.read(key: _cacheKey);
+    if (_liveUpdateApplied) return;
     if (raw == null) {
-      state = state.copyWith(viewState: WearViewState.syncing);
+      if (!_liveUpdateApplied) {
+        state = state.copyWith(viewState: WearViewState.syncing);
+      }
       return;
     }
     try {
@@ -127,13 +141,19 @@ class WearQueueNotifier extends StateNotifier<WearQueueState> {
         final parsed = DateTime.tryParse(updatedAt);
         if (parsed != null &&
             DateTime.now().toUtc().difference(parsed.toUtc()) > _ttl) {
-          state = const WearQueueState(viewState: WearViewState.syncing);
+          if (!_liveUpdateApplied) {
+            state = const WearQueueState(viewState: WearViewState.syncing);
+          }
           return;
         }
       }
-      state = cached;
+      if (!_liveUpdateApplied) {
+        state = cached;
+      }
     } catch (_) {
-      state = const WearQueueState(viewState: WearViewState.syncing);
+      if (!_liveUpdateApplied) {
+        state = const WearQueueState(viewState: WearViewState.syncing);
+      }
     }
   }
 
@@ -145,15 +165,18 @@ class WearQueueNotifier extends StateNotifier<WearQueueState> {
   }
 
   void setSyncing() {
+    _liveUpdateApplied = true;
     state = state.copyWith(viewState: WearViewState.syncing);
   }
 
   void setNoTicket() {
+    _liveUpdateApplied = true;
     state = const WearQueueState(viewState: WearViewState.noTicket);
     _storage.delete(key: _cacheKey);
   }
 
   void setNoPhone() {
+    _liveUpdateApplied = true;
     state = state.copyWith(viewState: WearViewState.noPhone);
   }
 
@@ -165,8 +188,10 @@ class WearQueueNotifier extends StateNotifier<WearQueueState> {
     required int estimatedMinutes,
     required TicketStatus status,
     int? counterNumber,
+    String? issuedAt,
     String? updatedAt,
   }) {
+    _liveUpdateApplied = true;
     final viewState = status == TicketStatus.called
         ? WearViewState.called
         : WearViewState.active;
@@ -179,12 +204,14 @@ class WearQueueNotifier extends StateNotifier<WearQueueState> {
       estimatedMinutes: estimatedMinutes,
       status: status,
       counterNumber: counterNumber,
+      issuedAt: issuedAt ?? state.issuedAt,
       updatedAt: updatedAt ?? DateTime.now().toUtc().toIso8601String(),
     );
     _persist();
   }
 
   void markAlert(String message) {
+    _liveUpdateApplied = true;
     state = state.copyWith(
       alertMessage: message,
       viewState: WearViewState.called,

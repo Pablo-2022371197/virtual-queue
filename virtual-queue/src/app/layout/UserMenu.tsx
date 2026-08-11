@@ -1,7 +1,7 @@
 import type { Key } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Avatar, Dropdown, Label } from '@heroui/react'
-import { BarChart3, LogOut, Settings, Ticket, UserCircle, Users } from 'lucide-react'
+import { BarChart3, LogOut, Ticket, UserCircle, Users } from 'lucide-react'
 import { useAuth } from '../../features/auth/useAuth'
 
 export function UserMenu() {
@@ -12,16 +12,13 @@ export function UserMenu() {
   async function handleAction(key: Key) {
     switch (key) {
       case 'home':
-        navigate('/home')
+        navigate(hasRole('STAFF') && !hasRole('ADMIN') ? '/staff' : '/home')
         break
       case 'stats':
         navigate('/estadisticas')
         break
       case 'staff':
         navigate('/staff')
-        break
-      case 'admin':
-        navigate('/admin/places')
         break
       case 'account':
         navigate('/cuenta')
@@ -65,10 +62,19 @@ export function UserMenu() {
         </div>
 
         <Dropdown.Menu onAction={handleAction}>
-          <Dropdown.Item id="home" textValue="Mi turno">
+          <Dropdown.Item
+            id="home"
+            textValue={hasRole('STAFF') && !hasRole('ADMIN') ? 'Panel de personal' : 'Mi turno'}
+          >
             <div className="flex w-full items-center justify-between gap-2">
-              <Label>Mi turno</Label>
-              <Ticket size={14} strokeWidth={1.75} className="text-muted" />
+              <Label>
+                {hasRole('STAFF') && !hasRole('ADMIN') ? 'Panel de personal' : 'Mi turno'}
+              </Label>
+              {hasRole('STAFF') && !hasRole('ADMIN') ? (
+                <Users size={14} strokeWidth={1.75} className="text-muted" />
+              ) : (
+                <Ticket size={14} strokeWidth={1.75} className="text-muted" />
+              )}
             </div>
           </Dropdown.Item>
           <Dropdown.Item id="stats" textValue="Estadísticas">
@@ -77,19 +83,11 @@ export function UserMenu() {
               <BarChart3 size={14} strokeWidth={1.75} className="text-muted" />
             </div>
           </Dropdown.Item>
-          {hasRole('STAFF', 'ADMIN') && (
+          {hasRole('ADMIN') && (
             <Dropdown.Item id="staff" textValue="Panel de personal">
               <div className="flex w-full items-center justify-between gap-2">
                 <Label>Panel de personal</Label>
                 <Users size={14} strokeWidth={1.75} className="text-muted" />
-              </div>
-            </Dropdown.Item>
-          )}
-          {hasRole('ADMIN') && (
-            <Dropdown.Item id="admin" textValue="Administración">
-              <div className="flex w-full items-center justify-between gap-2">
-                <Label>Administración</Label>
-                <Settings size={14} strokeWidth={1.75} className="text-muted" />
               </div>
             </Dropdown.Item>
           )}

@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,6 +26,7 @@ public class TicketController {
 	}
 
 	@PostMapping("/places/{placeId}/tickets")
+	@PreAuthorize("hasRole('CUSTOMER')")
 	@org.springframework.web.bind.annotation.ResponseStatus(HttpStatus.CREATED)
 	public TicketDTO takeTicket(@PathVariable UUID placeId) {
 		return ticketService.takeTicket(placeId);

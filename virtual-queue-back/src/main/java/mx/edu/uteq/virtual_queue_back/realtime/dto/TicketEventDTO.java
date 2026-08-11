@@ -20,6 +20,7 @@ public record TicketEventDTO(
 				new TicketEventPayload(
 						ticket.id(),
 						ticket.placeId(),
+						ticket.placeName(),
 						ticket.number(),
 						ticket.position(),
 						ticket.estimatedMinutes(),
@@ -30,6 +31,7 @@ public record TicketEventDTO(
 	public record TicketEventPayload(
 			UUID id,
 			UUID placeId,
+			String placeName,
 			String number,
 			int position,
 			int estimatedMinutes,

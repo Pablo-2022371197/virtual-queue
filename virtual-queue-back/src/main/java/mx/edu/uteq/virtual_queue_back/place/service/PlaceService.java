@@ -1,5 +1,6 @@
 package mx.edu.uteq.virtual_queue_back.place.service;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -11,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import mx.edu.uteq.virtual_queue_back.common.BusinessException;
 import mx.edu.uteq.virtual_queue_back.common.ErrorCode;
 import mx.edu.uteq.virtual_queue_back.common.TicketStatus;
+import mx.edu.uteq.virtual_queue_back.common.UserRole;
 import mx.edu.uteq.virtual_queue_back.place.dto.CreatePlaceRequest;
 import mx.edu.uteq.virtual_queue_back.place.dto.PlaceDTO;
 import mx.edu.uteq.virtual_queue_back.place.dto.PlaceStatsDTO;
@@ -22,8 +24,12 @@ import mx.edu.uteq.virtual_queue_back.place.mapper.PlaceMapper;
 import mx.edu.uteq.virtual_queue_back.place.repository.PlaceRepository;
 import mx.edu.uteq.virtual_queue_back.queue.entity.ServiceQueue;
 import mx.edu.uteq.virtual_queue_back.queue.repository.ServiceQueueRepository;
+import mx.edu.uteq.virtual_queue_back.security.SecurityUtils;
+import mx.edu.uteq.virtual_queue_back.security.UserPrincipal;
 import mx.edu.uteq.virtual_queue_back.ticket.entity.Ticket;
 import mx.edu.uteq.virtual_queue_back.ticket.repository.TicketRepository;
+import mx.edu.uteq.virtual_queue_back.user.entity.User;
+import mx.edu.uteq.virtual_queue_back.user.repository.UserRepository;
 
 @Service
 public class PlaceService {
@@ -31,37 +37,75 @@ public class PlaceService {
 	private final PlaceRepository placeRepository;
 	private final ServiceQueueRepository queueRepository;
 	private final TicketRepository ticketRepository;
+	private final UserRepository userRepository;
 	private final StaffRegistrationKeyService staffRegistrationKeyService;
 
 	public PlaceService(
 			PlaceRepository placeRepository,
 			ServiceQueueRepository queueRepository,
 			TicketRepository ticketRepository,
+			UserRepository userRepository,
 			StaffRegistrationKeyService staffRegistrationKeyService) {
 		this.placeRepository = placeRepository;
 		this.queueRepository = queueRepository;
 		this.ticketRepository = ticketRepository;
+		this.userRepository = userRepository;
 		this.staffRegistrationKeyService = staffRegistrationKeyService;
 	}
 
 	public Page<PlaceDTO> search(String query, String category, Pageable pageable) {
+		return searchManaged(query, category, true, pageable);
+	}
+
+	public Page<PlaceDTO> searchManaged(String query, String category, Boolean active, Pageable pageable) {
 		String normalizedQuery = query == null || query.isBlank() ? "" : query.trim();
 		String normalizedCategory = category == null || category.isBlank() ? null : category.trim();
-		return placeRepository.search(normalizedQuery, normalizedCategory, true, pageable).map(PlaceMapper::toDto);
+		return placeRepository.search(normalizedQuery, normalizedCategory, active, pageable).map(this::toPlaceDto);
+	}
+
+	public List<PlaceDTO> listPlacesForStats() {
+		UserPrincipal principal = SecurityUtils.currentUser();
+		return switch (principal.getRole()) {
+			case ADMIN -> placeRepository.findAll().stream().map(this::toPlaceDto).toList();
+			case STAFF -> {
+				User staff = userRepository.findByIdWithPlace(principal.getId())
+						.orElseThrow(() -> new BusinessException(
+								ErrorCode.RESOURCE_NOT_FOUND, "User not found", HttpStatus.NOT_FOUND));
+				if (staff.getPlace() == null) {
+					yield List.of();
+				}
+				yield List.of(toPlaceDto(staff.getPlace()));
+			}
+			case CUSTOMER -> placeRepository.findPlacesVisitedByUser(principal.getId()).stream()
+					.map(this::toPlaceDto)
+					.toList();
+		};
 	}
 
 	public PlaceDTO getById(UUID placeId) {
-		return PlaceMapper.toDto(findPlace(placeId));
+		return toPlaceDto(findPlace(placeId));
 	}
 
 	public QueueDTO getQueue(UUID placeId) {
 		ServiceQueue queue = queueRepository.findByPlaceId(placeId)
 				.orElseThrow(() -> new BusinessException(
 						ErrorCode.RESOURCE_NOT_FOUND, "Queue not found", HttpStatus.NOT_FOUND));
-		return PlaceMapper.toQueueDto(queue);
+		return toQueueDto(queue);
 	}
 
 	public PlaceStatsDTO getStats(UUID placeId) {
+		assertCanViewStats(placeId);
+		return buildStats(placeId);
+	}
+
+	/**
+	 * Stats used by internal realtime publishing (no caller ACL).
+	 */
+	public PlaceStatsDTO getStatsInternal(UUID placeId) {
+		return buildStats(placeId);
+	}
+
+	private PlaceStatsDTO buildStats(UUID placeId) {
 		ServiceQueue queue = queueRepository.findByPlaceId(placeId)
 				.orElseThrow(() -> new BusinessException(
 						ErrorCode.RESOURCE_NOT_FOUND, "Queue not found", HttpStatus.NOT_FOUND));
@@ -72,10 +116,11 @@ public class PlaceService {
 				.map(Ticket::getNumber)
 				.orElse(null);
 
-		int avgWait = (int) Math.ceil(
-				(double) activeTickets * queue.getAverageServiceMinutes() / Math.max(queue.getOpenCounters(), 1));
+		int avgService = resolveAverageServiceMinutes(queue);
+		int staffing = staffingCounters(placeId);
+		int avgWait = (int) Math.ceil((double) activeTickets * avgService / Math.max(staffing, 1));
 
-		return new PlaceStatsDTO(placeId, (int) activeTickets, avgWait, queue.getOpenCounters(), turnCalled);
+		return new PlaceStatsDTO(placeId, (int) activeTickets, avgWait, staffing, turnCalled);
 	}
 
 	@Transactional
@@ -90,13 +135,15 @@ public class PlaceService {
 				.build();
 		placeRepository.save(place);
 
+		int totalCounters = request.totalCounters() != null ? request.totalCounters() : 1;
 		ServiceQueue queue = ServiceQueue.builder()
 				.id(UUID.randomUUID())
 				.place(place)
+				.openCounters(Math.max(totalCounters, 1))
 				.build();
 		queueRepository.save(queue);
 
-		return PlaceMapper.toDto(place);
+		return PlaceMapper.toDto(place, queue.getOpenCounters());
 	}
 
 	@Transactional
@@ -106,14 +153,29 @@ public class PlaceService {
 		place.setAddress(request.address());
 		place.setCategory(request.category());
 		place.setDescription(request.description());
-		return PlaceMapper.toDto(placeRepository.save(place));
+		placeRepository.save(place);
+
+		ServiceQueue queue = queueRepository.findByPlaceId(placeId)
+				.orElseThrow(() -> new BusinessException(
+						ErrorCode.RESOURCE_NOT_FOUND, "Queue not found", HttpStatus.NOT_FOUND));
+
+		if (request.totalCounters() != null) {
+			int total = Math.max(request.totalCounters(), 1);
+			if (total < queue.getOpenCounters()) {
+				userRepository.clearClaimsAbove(placeId, total);
+			}
+			queue.setOpenCounters(total);
+			queueRepository.save(queue);
+		}
+
+		return PlaceMapper.toDto(place, queue.getOpenCounters());
 	}
 
 	@Transactional
 	public PlaceDTO updateStatus(UUID placeId, boolean active) {
 		Place place = findPlace(placeId);
 		place.setActive(active);
-		return PlaceMapper.toDto(placeRepository.save(place));
+		return toPlaceDto(placeRepository.save(place));
 	}
 
 	@Transactional
@@ -162,5 +224,58 @@ public class PlaceService {
 		return placeRepository.findById(placeId)
 				.orElseThrow(() -> new BusinessException(
 						ErrorCode.RESOURCE_NOT_FOUND, "Place not found", HttpStatus.NOT_FOUND));
+	}
+
+	public int resolveAverageServiceMinutes(ServiceQueue queue) {
+		Double avg = ticketRepository.averageServiceMinutes(queue.getId());
+		if (avg == null || avg.isNaN() || avg <= 0) {
+			return Math.max(queue.getAverageServiceMinutes(), 1);
+		}
+		return Math.max((int) Math.round(avg), 1);
+	}
+
+	public int staffingCounters(UUID placeId) {
+		long claimed = userRepository.countClaimedByPlaceId(placeId);
+		return (int) Math.max(claimed, 1);
+	}
+
+	private PlaceDTO toPlaceDto(Place place) {
+		int total = queueRepository.findByPlaceId(place.getId())
+				.map(ServiceQueue::getOpenCounters)
+				.orElse(1);
+		return PlaceMapper.toDto(place, total);
+	}
+
+	private QueueDTO toQueueDto(ServiceQueue queue) {
+		return PlaceMapper.toQueueDto(
+				queue,
+				resolveAverageServiceMinutes(queue),
+				staffingCounters(queue.getPlace().getId()));
+	}
+
+	private void assertCanViewStats(UUID placeId) {
+		UserPrincipal principal = SecurityUtils.currentUser();
+		if (principal.getRole() == UserRole.ADMIN) {
+			return;
+		}
+		if (principal.getRole() == UserRole.STAFF) {
+			User staff = userRepository.findByIdWithPlace(principal.getId())
+					.orElseThrow(() -> new BusinessException(
+							ErrorCode.RESOURCE_NOT_FOUND, "User not found", HttpStatus.NOT_FOUND));
+			UUID staffPlaceId = staff.getPlace() != null ? staff.getPlace().getId() : null;
+			if (staffPlaceId == null || !staffPlaceId.equals(placeId)) {
+				throw new BusinessException(
+						ErrorCode.FORBIDDEN,
+						"Staff can only view stats for their assigned place",
+						HttpStatus.FORBIDDEN);
+			}
+			return;
+		}
+		if (!ticketRepository.existsByUserIdAndPlaceId(principal.getId(), placeId)) {
+			throw new BusinessException(
+					ErrorCode.FORBIDDEN,
+					"Stats are only available for places where you have taken a ticket",
+					HttpStatus.FORBIDDEN);
+		}
 	}
 }

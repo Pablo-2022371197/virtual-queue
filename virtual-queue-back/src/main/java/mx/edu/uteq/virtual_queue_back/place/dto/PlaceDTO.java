@@ -10,5 +10,6 @@ public record PlaceDTO(
 		String category,
 		String description,
 		boolean active,
-		Instant createdAt) {
+		Instant createdAt,
+		int totalCounters) {
 }

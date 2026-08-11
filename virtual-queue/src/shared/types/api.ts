@@ -16,6 +16,8 @@ export interface UserSummary {
   role: UserRole
   placeId?: string | null
   placeName?: string | null
+  claimedCounter?: number | null
+  claimedCounterLabel?: string | null
 }
 
 export interface UpdateProfileRequest {
@@ -58,6 +60,7 @@ export interface Place {
   description?: string
   active: boolean
   createdAt?: string
+  totalCounters?: number
 }
 
 export interface Queue {
@@ -66,6 +69,7 @@ export interface Queue {
   prefix: string
   averageServiceMinutes: number
   openCounters: number
+  totalCounters?: number
   active: boolean
 }
 
@@ -87,6 +91,7 @@ export interface Ticket {
   status: TicketStatus
   issuedAt: string
   counterNumber?: number | null
+  counterLabel?: string | null
 }
 
 export interface TicketEvent {
@@ -96,11 +101,13 @@ export interface TicketEvent {
   ticket: {
     id: string
     placeId: string
+    placeName?: string
     number: string
     position: number
     estimatedMinutes: number
     status: TicketStatus
     counterNumber?: number | null
+    counterLabel?: string | null
   }
 }
 
@@ -119,6 +126,7 @@ export interface CreatePlaceRequest {
   address?: string
   category?: string
   description?: string
+  totalCounters?: number
 }
 
 export interface UpdatePlaceRequest {
@@ -126,11 +134,22 @@ export interface UpdatePlaceRequest {
   address?: string
   category?: string
   description?: string
+  totalCounters?: number
 }
 
-export interface UpdateQueueSettingsRequest {
-  averageServiceMinutes?: number
-  openCounters?: number
+export interface CounterSlot {
+  number: number
+  code: string
+  occupied: boolean
+  occupiedBy?: string | null
+  claimedByMe: boolean
+}
+
+export interface CounterClaimState {
+  claimedCounter: number | null
+  claimedCode: string | null
+  totalCounters: number
+  counters: CounterSlot[]
 }
 
 export interface RegisterDeviceRequest {

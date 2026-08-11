@@ -1,5 +1,6 @@
 package mx.edu.uteq.virtual_queue_back.place.repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -15,7 +16,7 @@ public interface PlaceRepository extends JpaRepository<Place, UUID> {
 
 	@Query("""
 			SELECT p FROM Place p
-			WHERE (:activeOnly = false OR p.active = true)
+			WHERE (:active IS NULL OR p.active = :active)
 			  AND (:category IS NULL OR p.category = :category)
 			  AND (:query = '' OR LOWER(p.name) LIKE LOWER(CONCAT('%', :query, '%'))
 			       OR LOWER(COALESCE(p.address, '')) LIKE LOWER(CONCAT('%', :query, '%')))
@@ -23,8 +24,16 @@ public interface PlaceRepository extends JpaRepository<Place, UUID> {
 	Page<Place> search(
 			@Param("query") String query,
 			@Param("category") String category,
-			@Param("activeOnly") boolean activeOnly,
+			@Param("active") Boolean active,
 			Pageable pageable);
+
+	@Query("""
+			SELECT DISTINCT q.place FROM Ticket t
+			JOIN t.queue q
+			WHERE t.user.id = :userId
+			ORDER BY q.place.name ASC
+			""")
+	List<Place> findPlacesVisitedByUser(@Param("userId") UUID userId);
 
 	Optional<Place> findByStaffRegistrationKeyDigestAndActiveTrue(String staffRegistrationKeyDigest);
 }

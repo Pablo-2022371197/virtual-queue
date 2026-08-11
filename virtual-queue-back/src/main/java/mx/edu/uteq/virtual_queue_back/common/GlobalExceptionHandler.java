@@ -12,6 +12,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -50,6 +51,13 @@ public class GlobalExceptionHandler {
 		ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, "Access denied");
 		detail.setProperty("code", ErrorCode.FORBIDDEN.name());
 		return ResponseEntity.status(HttpStatus.FORBIDDEN).body(detail);
+	}
+
+	@ExceptionHandler(MethodArgumentTypeMismatchException.class)
+	public ResponseEntity<ProblemDetail> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+		ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Invalid request parameter");
+		detail.setProperty("code", ErrorCode.VALIDATION_ERROR.name());
+		return ResponseEntity.badRequest().body(detail);
 	}
 
 	@ExceptionHandler(Exception.class)

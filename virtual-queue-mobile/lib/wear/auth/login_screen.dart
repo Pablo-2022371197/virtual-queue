@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wear_plus/wear_plus.dart';
@@ -7,7 +8,10 @@ import '../../core/auth/auth_service.dart';
 import '../../core/errors/api_exception.dart';
 import '../wear_safe_area.dart';
 import 'pin_storage.dart';
+import 'wear_text_input.dart';
 
+/// Uses Android Wear RemoteInput instead of Flutter TextField. The Wear IME
+/// owns the full-screen editor and returns only text explicitly confirmed.
 class WearLoginScreen extends ConsumerStatefulWidget {
   const WearLoginScreen({super.key});
 
@@ -16,24 +20,70 @@ class WearLoginScreen extends ConsumerStatefulWidget {
 }
 
 class _WearLoginScreenState extends ConsumerState<WearLoginScreen> {
-  final _usernameController = TextEditingController();
-  final _passwordController = TextEditingController();
-  bool _obscure = true;
+  String _username = '';
+  String _password = '';
+  bool _openingInput = false;
   bool _loading = false;
+  bool _submitting = false;
   String? _error;
 
-  @override
-  void dispose() {
-    _usernameController.dispose();
-    _passwordController.dispose();
-    super.dispose();
+  Future<void> _openUsername() async {
+    await _requestText(
+      label: 'Usuario o correo',
+      onAccepted: (value) => _username = value,
+    );
+  }
+
+  Future<void> _openPassword() async {
+    await _requestText(
+      label: 'Contraseña',
+      onAccepted: (value) => _password = value,
+    );
+  }
+
+  Future<void> _requestText({
+    required String label,
+    required ValueChanged<String> onAccepted,
+  }) async {
+    if (_openingInput || _loading) return;
+    setState(() {
+      _openingInput = true;
+      _error = null;
+    });
+    try {
+      final value = await WearTextInput.request(label: label);
+      if (value != null && mounted) {
+        setState(() => onAccepted(value));
+      }
+    } on PlatformException catch (error) {
+      debugPrint('[WearLogin] RemoteInput error: ${error.code}');
+      if (mounted) {
+        setState(() => _error = 'No se pudo abrir el teclado del reloj');
+      }
+    } finally {
+      if (mounted) setState(() => _openingInput = false);
+    }
   }
 
   Future<void> _submit() async {
-    final username = _usernameController.text.trim();
-    final password = _passwordController.text;
-    if (username.isEmpty || password.isEmpty) {
-      setState(() => _error = 'Usuario y contraseña requeridos');
+    if (_loading || _submitting) return;
+    _submitting = true;
+
+    final username = _username.trim();
+    final password = _password;
+
+    debugPrint(
+      '[WearLogin] submit userLen=${username.length} passLen=${password.length}',
+    );
+
+    if (username.isEmpty) {
+      _submitting = false;
+      setState(() => _error = 'Ingresa usuario o correo');
+      return;
+    }
+    if (password.isEmpty) {
+      _submitting = false;
+      setState(() => _error = 'Ingresa tu contraseña');
       return;
     }
 
@@ -48,21 +98,28 @@ class _WearLoginScreenState extends ConsumerState<WearLoginScreen> {
             password: password,
           );
       if (!mounted) return;
+
       final user = ref.read(authStateProvider).user;
       final userId = user?.id ?? '';
-      final hasDecision = userId.isNotEmpty && await PinStorage.hasPinDecision(userId);
+      final hasDecision =
+          userId.isNotEmpty && await PinStorage.hasPinDecision(userId);
       if (!mounted) return;
+
       if (!hasDecision) {
         context.go('/wear/pin/setup');
       } else {
-        final hasPin = await PinStorage.hasPin(scope: PinScope.wear, userId: userId);
+        final hasPin =
+            await PinStorage.hasPin(scope: PinScope.wear, userId: userId);
+        if (!mounted) return;
         context.go(hasPin ? '/wear/pin/verify' : '/wear/home');
       }
     } on ApiException catch (error) {
-      setState(() => _error = error.message);
-    } catch (_) {
-      setState(() => _error = 'No se pudo iniciar sesión');
+      if (mounted) setState(() => _error = error.message);
+    } catch (error, stack) {
+      debugPrint('[WearLogin] unexpected error: $error\n$stack');
+      if (mounted) setState(() => _error = 'No se pudo iniciar sesión');
     } finally {
+      _submitting = false;
       if (mounted) setState(() => _loading = false);
     }
   }
@@ -73,6 +130,7 @@ class _WearLoginScreenState extends ConsumerState<WearLoginScreen> {
       builder: (context, mode, child) {
         return Scaffold(
           backgroundColor: Colors.black,
+          resizeToAvoidBottomInset: true,
           body: WearSafeArea(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 220),
@@ -89,43 +147,38 @@ class _WearLoginScreenState extends ConsumerState<WearLoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  TextField(
-                    controller: _usernameController,
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
-                    decoration: _inputDecoration('Usuario o correo'),
-                    textInputAction: TextInputAction.next,
-                    autocorrect: false,
+                  _inputButton(
+                    label: 'Usuario o correo',
+                    value: _username,
+                    icon: Icons.person_outline,
+                    onPressed: _openUsername,
                   ),
                   const SizedBox(height: 8),
-                  TextField(
-                    controller: _passwordController,
-                    obscureText: _obscure,
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
-                    decoration: _inputDecoration('Contraseña').copyWith(
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscure ? Icons.visibility : Icons.visibility_off,
-                          color: Colors.white70,
-                          size: 18,
-                        ),
-                        onPressed: () => setState(() => _obscure = !_obscure),
-                      ),
-                    ),
-                    onSubmitted: (_) => _submit(),
+                  _inputButton(
+                    label: 'Contraseña',
+                    value: _password.isEmpty
+                        ? ''
+                        : List.filled(_password.length, '•').join(),
+                    icon: Icons.lock_outline,
+                    onPressed: _openPassword,
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 8),
                     Text(
                       _error!,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.redAccent, fontSize: 11),
+                      style: const TextStyle(
+                        color: Colors.redAccent,
+                        fontSize: 10,
+                      ),
                     ),
                   ],
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
-                      onPressed: _loading ? null : _submit,
+                      onPressed:
+                          _loading || _openingInput ? null : _submit,
                       style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 10),
                       ),
@@ -135,7 +188,10 @@ class _WearLoginScreenState extends ConsumerState<WearLoginScreen> {
                               height: 18,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Text('Entrar', style: TextStyle(fontSize: 13)),
+                          : const Text(
+                              'Entrar',
+                              style: TextStyle(fontSize: 13),
+                            ),
                     ),
                   ),
                 ],
@@ -147,19 +203,57 @@ class _WearLoginScreenState extends ConsumerState<WearLoginScreen> {
     );
   }
 
-  InputDecoration _inputDecoration(String label) {
-    return InputDecoration(
-      labelText: label,
-      labelStyle: const TextStyle(color: Colors.white70, fontSize: 12),
-      isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.white24),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.white70),
+  Widget _inputButton({
+    required String label,
+    required String value,
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    final hasValue = value.isNotEmpty;
+
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        onPressed: _openingInput || _loading ? null : onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          side: const BorderSide(color: Colors.white38),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: Colors.white70),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: Colors.white60,
+                      fontSize: 9,
+                    ),
+                  ),
+                  Text(
+                    hasValue ? value : 'Toca para escribir',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: hasValue ? Colors.white : Colors.white38,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.edit_outlined, size: 14, color: Colors.white54),
+          ],
+        ),
       ),
     );
   }

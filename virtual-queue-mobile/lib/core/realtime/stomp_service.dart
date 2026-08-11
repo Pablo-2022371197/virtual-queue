@@ -11,7 +11,6 @@ typedef ConnectionCallback = void Function(bool connected);
 class StompService {
   StompClient? _client;
   final Set<String> _seenEventIds = {};
-  bool _ticketSubscribed = false;
   ConnectionCallback? _onConnectionChange;
 
   bool get isConnected => _client?.connected ?? false;
@@ -45,7 +44,7 @@ class StompService {
   }
 
   void _subscribeTicket(TicketEventCallback onTicketEvent) {
-    if (_ticketSubscribed || _client == null) return;
+    if (_client == null) return;
 
     _client!.subscribe(
       destination: '/user/queue/ticket',
@@ -61,13 +60,11 @@ class StompService {
         onTicketEvent(event);
       },
     );
-    _ticketSubscribed = true;
   }
 
   void disconnect() {
     _client?.deactivate();
     _client = null;
-    _ticketSubscribed = false;
     _onConnectionChange?.call(false);
   }
 }

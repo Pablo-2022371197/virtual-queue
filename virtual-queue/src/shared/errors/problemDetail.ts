@@ -9,7 +9,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   DUPLICATE_EMAIL: 'Este correo ya está registrado.',
   DUPLICATE_USERNAME: 'Este nombre de usuario ya existe.',
   ACTIVE_TICKET_EXISTS: 'Ya tienes un turno activo. Cancélalo antes de tomar otro.',
-  QUEUE_ALREADY_JOINED: 'Ya estás en esta fila.',
+  QUEUE_ALREADY_JOINED:
+    'Ya tienes un turno activo en este establecimiento. Cancélalo antes de tomar otro.',
   INVALID_TICKET_TRANSITION: 'No se puede cambiar el estado del turno.',
   QUEUE_NOT_ACTIVE: 'La fila no está activa en este momento.',
   PLACE_NOT_ACTIVE: 'El establecimiento no está activo.',

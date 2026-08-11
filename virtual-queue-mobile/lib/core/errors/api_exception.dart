@@ -26,6 +26,8 @@ String messageForCode(String? code) {
       return 'Revisa los datos ingresados.';
     case 'ACTIVE_TICKET_EXISTS':
       return 'Ya tienes un turno activo. Cancélalo antes de tomar otro.';
+    case 'QUEUE_ALREADY_JOINED':
+      return 'Ya tienes un turno activo en este establecimiento. Cancélalo antes de tomar otro.';
     case 'DUPLICATE_EMAIL':
       return 'El correo ya está registrado.';
     case 'DUPLICATE_USERNAME':
@@ -34,6 +36,10 @@ String messageForCode(String? code) {
       return 'Clave de sucursal inválida.';
     case 'STAFF_REGISTRATION_KEY_REQUIRED':
       return 'Se requiere la clave de sucursal.';
+    case 'COUNTER_ALREADY_CLAIMED':
+      return 'Esa caja ya está ocupada por otro miembro del personal.';
+    case 'COUNTER_CLAIM_REQUIRED':
+      return 'Selecciona tu caja antes de operar la fila.';
     case 'REFRESH_TOKEN_INVALID':
     case 'REFRESH_TOKEN_REUSED':
       return 'Tu sesión expiró. Inicia sesión nuevamente.';

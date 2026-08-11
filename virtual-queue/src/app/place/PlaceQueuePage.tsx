@@ -6,27 +6,35 @@ import DashboardStats from './DashboardStats'
 import { usePlace, usePlaceQueue, usePlaceStats } from '../../hooks/usePlace'
 import { useMyTicket, useTakeTicket } from '../../hooks/useMyTicket'
 import { ConnectionStatus } from '../../shared/components/ConnectionStatus'
+import { formatDateTime } from '../../shared/format/datetime'
+import { counterLabel } from '../../shared/format/counterLabel'
 import { useQueueSocket, usePlaceStatsSocket } from '../../shared/realtime/useQueueSocket'
 import { ApiError } from '../../shared/api/client'
+import { useAuth } from '../../features/auth/useAuth'
 
 export default function PlaceQueuePage() {
   const { id: placeId } = useParams()
+  const { hasRole } = useAuth()
+  const canTakeTicket = hasRole('CUSTOMER')
   const { data: place, isLoading: placeLoading } = usePlace(placeId)
   const { data: queue, isLoading: queueLoading } = usePlaceQueue(placeId)
-  const { data: stats, isLoading: statsLoading } = usePlaceStats(placeId)
   const { data: myTicket } = useMyTicket()
+  const hasTicketHere = myTicket?.placeId === placeId
+  const canViewStats = hasRole('ADMIN') || !!hasTicketHere
+  const { data: stats, isLoading: statsLoading } = usePlaceStats(placeId, {
+    enabled: canViewStats,
+  })
   const takeMutation = useTakeTicket()
   const { connected } = useQueueSocket()
-  usePlaceStatsSocket(placeId)
+  usePlaceStatsSocket(canViewStats ? placeId : undefined)
   const [showConfirm, setShowConfirm] = useState(false)
   const [takeError, setTakeError] = useState<string | null>(null)
 
-  const isLoading = placeLoading || queueLoading || statsLoading
+  const isLoading = placeLoading || queueLoading || (canViewStats && statsLoading)
   const hasActiveTicket = !!myTicket
-  const hasTicketHere = myTicket?.placeId === placeId
 
   async function handleTakeTicket() {
-    if (!placeId) return
+    if (!placeId || !canTakeTicket) return
     setTakeError(null)
     try {
       await takeMutation.mutateAsync(placeId)
@@ -66,14 +74,16 @@ export default function PlaceQueuePage() {
         </div>
       )}
 
-      {!isLoading && stats && (
+      {!isLoading && (stats || queue) && (
         <div className="grid gap-4 sm:grid-cols-3">
           <Card>
             <Card.Content className="flex items-center gap-3 py-2">
               <Users size={20} className="text-accent" />
               <div>
                 <p className="text-xs text-muted">En fila</p>
-                <p className="text-xl font-bold">{stats.activeTickets}</p>
+                <p className="text-xl font-bold">
+                  {stats?.activeTickets ?? '—'}
+                </p>
               </div>
             </Card.Content>
           </Card>
@@ -82,7 +92,9 @@ export default function PlaceQueuePage() {
               <Clock size={20} className="text-accent" />
               <div>
                 <p className="text-xs text-muted">Espera promedio</p>
-                <p className="text-xl font-bold">~{stats.averageWaitMinutes} min</p>
+                <p className="text-xl font-bold">
+                  ~{stats?.averageWaitMinutes ?? queue?.averageServiceMinutes ?? '—'} min
+                </p>
               </div>
             </Card.Content>
           </Card>
@@ -90,7 +102,7 @@ export default function PlaceQueuePage() {
             <Card.Content className="flex items-center gap-3 py-2">
               <div>
                 <p className="text-xs text-muted">Turno llamado</p>
-                <p className="text-xl font-bold">{stats.turnCalled ?? '—'}</p>
+                <p className="text-xl font-bold">{stats?.turnCalled ?? '—'}</p>
               </div>
             </Card.Content>
           </Card>
@@ -102,23 +114,40 @@ export default function PlaceQueuePage() {
           <Card.Title>Fila en vivo</Card.Title>
           <Card.Description>
             {queue
-              ? `${queue.openCounters} ventanilla(s) · ~${queue.averageServiceMinutes} min por turno`
+              ? `${queue.totalCounters ?? queue.openCounters} caja(s) · ~${queue.averageServiceMinutes} min por turno`
               : 'Información actualizada del establecimiento.'}
           </Card.Description>
         </Card.Header>
         <Card.Content>
-          <DashboardStats placeId={placeId} />
+          {canViewStats ? (
+            <DashboardStats placeId={placeId} />
+          ) : (
+            <Alert status="accent">
+              Las estadísticas en vivo se habilitan después de tomar un turno aquí.
+            </Alert>
+          )}
         </Card.Content>
         <Card.Footer className="flex-col gap-3">
-          {hasTicketHere ? (
+          {!canTakeTicket ? (
+            <Alert status="warning">
+              El personal no toma turnos. Usa el panel de Personal para atender la fila.
+            </Alert>
+          ) : hasTicketHere ? (
             <div className="flex w-full flex-col gap-2">
               <Alert status="success">
                 Ya tienes el turno <strong>{myTicket?.number}</strong> en este establecimiento.
+                {myTicket?.issuedAt && (
+                  <>
+                    {' '}
+                    Expedido el {formatDateTime(myTicket.issuedAt)}.
+                  </>
+                )}
               </Alert>
               {(myTicket?.status === 'CALLED' || myTicket?.status === 'SERVING') &&
                 myTicket.counterNumber != null && (
                   <Alert status="accent">
-                    Dirígete a la ventanilla {myTicket.counterNumber}
+                    Dirígete a la caja{' '}
+                    {myTicket.counterLabel ?? counterLabel(myTicket.counterNumber)}
                   </Alert>
                 )}
             </div>
@@ -158,11 +187,13 @@ export default function PlaceQueuePage() {
 
           {takeError && <Alert status="danger">{takeError}</Alert>}
 
-          <Link to="/home" className="w-full">
-            <Button variant="secondary" fullWidth>
-              Ver mi turno
-            </Button>
-          </Link>
+          {canTakeTicket && (
+            <Link to="/home" className="w-full">
+              <Button variant="secondary" fullWidth>
+                Ver mi turno
+              </Button>
+            </Link>
+          )}
         </Card.Footer>
       </Card>
     </section>

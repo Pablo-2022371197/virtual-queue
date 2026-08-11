@@ -64,6 +64,7 @@ class Ticket {
     required this.status,
     this.issuedAt,
     this.counterNumber,
+    this.counterLabel,
   });
 
   final String id;
@@ -75,6 +76,7 @@ class Ticket {
   final TicketStatus status;
   final String? issuedAt;
   final int? counterNumber;
+  final String? counterLabel;
 
   factory Ticket.fromJson(Map<String, dynamic> json) {
     return Ticket(
@@ -93,6 +95,7 @@ class Ticket {
       counterNumber: json['counterNumber'] is int
           ? json['counterNumber'] as int
           : int.tryParse(json['counterNumber']?.toString() ?? ''),
+      counterLabel: json['counterLabel']?.toString(),
     );
   }
 
@@ -106,5 +109,6 @@ class Ticket {
         'status': status.name.toUpperCase(),
         if (issuedAt != null) 'issuedAt': issuedAt,
         if (counterNumber != null) 'counterNumber': counterNumber,
+        if (counterLabel != null) 'counterLabel': counterLabel,
       };
 }

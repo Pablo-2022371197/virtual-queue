@@ -12,6 +12,12 @@ export async function listQueueTickets(
   return client<Ticket[]>(`/api/staff/queues/${queueId}/tickets?status=${status}`)
 }
 
+export async function getLastDismissedTicket(
+  queueId: string,
+): Promise<Ticket | null> {
+  return client<Ticket | null>(`/api/staff/queues/${queueId}/last-dismissed`)
+}
+
 export async function callNextTicket(queueId: string): Promise<Ticket> {
   return client<Ticket>(`/api/staff/queues/${queueId}/call-next`, { method: 'POST' })
 }

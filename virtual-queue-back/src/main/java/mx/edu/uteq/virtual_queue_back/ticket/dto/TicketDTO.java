@@ -14,5 +14,6 @@ public record TicketDTO(
 		int estimatedMinutes,
 		TicketStatus status,
 		Instant issuedAt,
-		Integer counterNumber) {
+		Integer counterNumber,
+		String counterLabel) {
 }

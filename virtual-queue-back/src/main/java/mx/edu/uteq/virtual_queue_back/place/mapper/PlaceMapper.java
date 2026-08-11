@@ -11,6 +11,10 @@ public final class PlaceMapper {
 	}
 
 	public static PlaceDTO toDto(Place place) {
+		return toDto(place, 1);
+	}
+
+	public static PlaceDTO toDto(Place place, int totalCounters) {
 		return new PlaceDTO(
 				place.getId(),
 				place.getName(),
@@ -18,16 +22,19 @@ public final class PlaceMapper {
 				place.getCategory(),
 				place.getDescription(),
 				place.isActive(),
-				place.getCreatedAt());
+				place.getCreatedAt(),
+				Math.max(totalCounters, 1));
 	}
 
-	public static QueueDTO toQueueDto(ServiceQueue queue) {
+	public static QueueDTO toQueueDto(ServiceQueue queue, int averageServiceMinutes, int staffingCounters) {
+		int total = Math.max(queue.getOpenCounters(), 1);
 		return new QueueDTO(
 				queue.getId(),
 				queue.getPlace().getId(),
 				queue.getPrefix(),
-				queue.getAverageServiceMinutes(),
-				queue.getOpenCounters(),
+				averageServiceMinutes,
+				Math.max(staffingCounters, 1),
+				total,
 				queue.isActive());
 	}
 }
