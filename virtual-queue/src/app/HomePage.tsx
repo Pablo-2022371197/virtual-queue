@@ -37,6 +37,8 @@ export default function HomePage() {
     }
   }
 
+  const isBeingServed = ticket?.status === 'SERVING'
+
   return (
     <section className="flex flex-col gap-6">
       <header className="flex items-start justify-between gap-4">
@@ -148,7 +150,11 @@ export default function HomePage() {
               Recibirás un aviso cuando se acerque tu turno.
             </p>
 
-            {!showConfirm ? (
+            {isBeingServed ? (
+              <p className="text-center text-lg font-semibold text-foreground">
+                Es tu turno
+              </p>
+            ) : !showConfirm ? (
               <Button
                 variant="danger"
                 fullWidth
