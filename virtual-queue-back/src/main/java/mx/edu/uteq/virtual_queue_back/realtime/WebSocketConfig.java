@@ -48,9 +48,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 		List<String> origins = List.of(allowedOrigins.split(","));
 		String[] allowed = origins.stream().map(String::trim).filter(s -> !s.isEmpty()).toArray(String[]::new);
 
-		// Native WebSocket for Flutter Wear / mobile clients.
-		registry.addEndpoint("/ws").setAllowedOrigins(allowed);
-		// SockJS for the web SPA.
+		// Native WebSocket (Flutter Wear / mobile): no browser Origin.
+		registry.addEndpoint("/ws").setAllowedOriginPatterns("*");
+		// SockJS for the web SPA — keep CORS origins from ALLOWED_ORIGINS.
 		registry.addEndpoint("/ws").setAllowedOrigins(allowed).withSockJS();
 	}
 

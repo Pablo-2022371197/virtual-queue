@@ -88,7 +88,7 @@ public class PlaceService {
 	}
 
 	public QueueDTO getQueue(UUID placeId) {
-		ServiceQueue queue = queueRepository.findByPlaceId(placeId)
+		ServiceQueue queue = queueRepository.findByPlaceIdWithPlace(placeId)
 				.orElseThrow(() -> new BusinessException(
 						ErrorCode.RESOURCE_NOT_FOUND, "Queue not found", HttpStatus.NOT_FOUND));
 		return toQueueDto(queue);
@@ -107,7 +107,7 @@ public class PlaceService {
 	}
 
 	private PlaceStatsDTO buildStats(UUID placeId) {
-		ServiceQueue queue = queueRepository.findByPlaceId(placeId)
+		ServiceQueue queue = queueRepository.findByPlaceIdWithPlace(placeId)
 				.orElseThrow(() -> new BusinessException(
 						ErrorCode.RESOURCE_NOT_FOUND, "Queue not found", HttpStatus.NOT_FOUND));
 

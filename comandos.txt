@@ -12,4 +12,4 @@ Get-Content .env | ForEach-Object {
 
 flutter clean
 flutter pub get
-flutter run -d emulator-5554 --flavor wear -t lib/main_wear.dart --dart-define=API_URL=http://10.0.2.2:8080 --dart-define=WS_URL=ws://10.0.2.2:8080/ws
+flutter run -d emulator-5554 --flavor wear -t lib/main_wear.dart --dart-define=API_URL=https://virtual-queue-back.onrender.com --dart-define=WS_URL=wss://virtual-queue-back.onrender.com/ws

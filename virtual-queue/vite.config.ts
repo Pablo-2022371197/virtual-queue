@@ -1,9 +1,23 @@
 import path from 'node:path'
-import { readFileSync } from 'node:fs'
-import { defineConfig } from 'vite'
+import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { defineConfig, type Plugin } from 'vite'
 import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 import babel from '@rolldown/plugin-babel'
 import tailwindcss from '@tailwindcss/vite'
+
+/** Ensures Netlify SPA fallback files exist in dist for Git and drag-and-drop deploys. */
+function netlifySpaFallback(): Plugin {
+  return {
+    name: 'netlify-spa-fallback',
+    closeBundle() {
+      const dist = path.resolve(__dirname, 'dist')
+      const indexHtml = path.join(dist, 'index.html')
+      if (!existsSync(indexHtml)) return
+      writeFileSync(path.join(dist, '_redirects'), '/*    /index.html   200\n')
+      copyFileSync(indexHtml, path.join(dist, '404.html'))
+    },
+  }
+}
 
 const pkg = JSON.parse(
   readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'),
@@ -15,6 +29,7 @@ export default defineConfig({
     react(),
     babel({ presets: [reactCompilerPreset()] }),
     tailwindcss(),
+    netlifySpaFallback(),
   ],
   resolve: {
     alias: {

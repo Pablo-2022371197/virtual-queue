@@ -117,7 +117,14 @@ class _WearLoginScreenState extends ConsumerState<WearLoginScreen> {
       if (mounted) setState(() => _error = error.message);
     } catch (error, stack) {
       debugPrint('[WearLogin] unexpected error: $error\n$stack');
-      if (mounted) setState(() => _error = 'No se pudo iniciar sesión');
+      final text = error.toString();
+      final message = text.contains('CERTIFICATE_VERIFY_FAILED') ||
+              text.contains('certificate is not yet valid')
+          ? 'Fecha del reloj incorrecta. Activa fecha automática en el emulador.'
+          : text.contains('HandshakeException') || text.contains('SocketException')
+              ? 'Sin conexión segura al servidor. Revisa fecha/hora e internet.'
+              : 'No se pudo iniciar sesión';
+      if (mounted) setState(() => _error = message);
     } finally {
       _submitting = false;
       if (mounted) setState(() => _loading = false);

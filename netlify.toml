@@ -1,0 +1,15 @@
+# Monorepo: Netlify only reads this file at the repo root unless
+# Site configuration → Build → Base directory is set to virtual-queue.
+[build]
+  base = "virtual-queue"
+  command = "pnpm install --frozen-lockfile && pnpm build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# React Router paths like /login are not real files. Serve the SPA instead.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

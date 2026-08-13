@@ -15,6 +15,9 @@ public interface ServiceQueueRepository extends JpaRepository<ServiceQueue, UUID
 
 	Optional<ServiceQueue> findByPlaceId(UUID placeId);
 
+	@Query("SELECT q FROM ServiceQueue q JOIN FETCH q.place WHERE q.place.id = :placeId")
+	Optional<ServiceQueue> findByPlaceIdWithPlace(@Param("placeId") UUID placeId);
+
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("SELECT q FROM ServiceQueue q WHERE q.id = :id")
 	Optional<ServiceQueue> findByIdForUpdate(@Param("id") UUID id);
