@@ -3,8 +3,7 @@ import type { Place } from '../shared/types/api'
 
 export const PLACE_FUSE_OPTIONS: Fuse.IFuseOptions<Place> = {
   keys: ['name', 'address', 'category'],
-  threshold: 0.4,
-  minMatchCharLength: 2,
+  threshold: 0.5,
 }
 
 export function createPlaceFuse(places: Place[]): Fuse<Place> {
