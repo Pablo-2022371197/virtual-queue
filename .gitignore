@@ -1,3 +1,5 @@
 docs/
 
-*/.env
+# Local environment (never commit secrets)
+.env
+**/.env
