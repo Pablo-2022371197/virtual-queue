@@ -131,26 +131,37 @@ export default function AdminPlacesPage() {
   const activeParam =
     statusFilter === 'all' ? undefined : statusFilter === 'active'
 
-  const { data: placesPage, isLoading, isError, error } = useAdminPlaces({
-    query: searchQuery.trim() || undefined,
-    category: categoryFilter === 'all' ? undefined : categoryFilter,
-    active: activeParam,
-    size: 100,
-  })
+  const {
+    places,
+    catalog,
+    isLoading,
+    isError,
+    error,
+    catalogLoaded,
+    catalogEmpty,
+  } = useAdminPlaces(
+    {
+      category: categoryFilter === 'all' ? undefined : categoryFilter,
+      active: activeParam,
+      size: 100,
+    },
+    searchQuery.trim(),
+  )
 
   useToastOnError(isError, error, {
     fallback: 'No se pudieron cargar los establecimientos.',
   })
 
-  const places = placesPage?.content ?? []
-
   const categories = useMemo(() => {
     const values = new Set<string>()
-    for (const place of places) {
+    for (const place of catalog) {
       if (place.category?.trim()) values.add(place.category.trim())
     }
     return Array.from(values).sort((a, b) => a.localeCompare(b))
-  }, [places])
+  }, [catalog])
+
+  const showNoMatches =
+    catalogLoaded && !catalogEmpty && places.length === 0 && searchQuery.trim().length >= 2
 
   const [formMode, setFormMode] = useState<PlaceFormMode>(null)
   const [editing, setEditing] = useState<Place | null>(null)
@@ -289,7 +300,7 @@ export default function AdminPlacesPage() {
           <Label>Buscar</Label>
           <SearchField.Group className="w-full">
             <SearchField.SearchIcon />
-            <SearchField.Input placeholder="Nombre o dirección…" />
+            <SearchField.Input placeholder="Buscar por nombre, dirección o categoría…" />
             <SearchField.ClearButton />
           </SearchField.Group>
         </SearchField>
@@ -363,7 +374,9 @@ export default function AdminPlacesPage() {
               <Table.Body
                 renderEmptyState={() => (
                   <div className="py-10 text-center text-sm text-muted">
-                    No hay establecimientos que coincidan con los filtros.
+                    {showNoMatches
+                      ? `No se encontraron resultados para “${searchQuery.trim()}”.`
+                      : 'No hay establecimientos que coincidan con los filtros.'}
                   </div>
                 )}
               >
