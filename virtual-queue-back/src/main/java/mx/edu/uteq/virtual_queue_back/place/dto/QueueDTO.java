@@ -2,6 +2,8 @@ package mx.edu.uteq.virtual_queue_back.place.dto;
 
 import java.util.UUID;
 
+import mx.edu.uteq.virtual_queue_back.common.CounterLabelMode;
+
 public record QueueDTO(
 		UUID id,
 		UUID placeId,
@@ -9,5 +11,6 @@ public record QueueDTO(
 		int averageServiceMinutes,
 		int openCounters,
 		int totalCounters,
-		boolean active) {
+		boolean active,
+		CounterLabelMode counterLabelMode) {
 }

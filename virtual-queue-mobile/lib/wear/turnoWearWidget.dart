@@ -286,11 +286,11 @@ class _TurnoWearWidgetState extends ConsumerState<TurnoWearWidget>
               ticketStatusLabel(queue.status),
               style: TextStyle(color: mutedColor, fontSize: 11),
             ),
-            if (queue.counterNumber != null &&
+            if ((queue.counterLabel != null || queue.counterNumber != null) &&
                 (queue.status == TicketStatus.called ||
                     queue.status == TicketStatus.serving))
               Text(
-                'Caja ${counterLabel(queue.counterNumber)}',
+                'Caja ${queue.counterLabel ?? counterLabel(queue.counterNumber)}',
                 style: TextStyle(
                   color: queue.viewState == WearViewState.called
                       ? Colors.amber

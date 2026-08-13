@@ -1,0 +1,2 @@
+ALTER TABLE places
+    ADD COLUMN counter_label_mode VARCHAR(16) NOT NULL DEFAULT 'LETTERS';

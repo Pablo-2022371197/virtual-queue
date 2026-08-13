@@ -8,16 +8,27 @@ import { useMyTicket, useTakeTicket } from '../../hooks/useMyTicket'
 import { ConnectionStatus } from '../../shared/components/ConnectionStatus'
 import { formatDateTime } from '../../shared/format/datetime'
 import { counterLabel } from '../../shared/format/counterLabel'
+import { useToastOnError } from '../../shared/hooks/useToastOnError'
 import { useQueueSocket, usePlaceStatsSocket } from '../../shared/realtime/useQueueSocket'
-import { ApiError } from '../../shared/api/client'
+import { toastFromError } from '../../shared/toast/appToast'
 import { useAuth } from '../../features/auth/useAuth'
 
 export default function PlaceQueuePage() {
   const { id: placeId } = useParams()
   const { hasRole } = useAuth()
   const canTakeTicket = hasRole('CUSTOMER')
-  const { data: place, isLoading: placeLoading } = usePlace(placeId)
-  const { data: queue, isLoading: queueLoading } = usePlaceQueue(placeId)
+  const {
+    data: place,
+    isLoading: placeLoading,
+    isError: placeLoadError,
+    error: placeQueryError,
+  } = usePlace(placeId)
+  const {
+    data: queue,
+    isLoading: queueLoading,
+    isError: queueLoadError,
+    error: queueQueryError,
+  } = usePlaceQueue(placeId)
   const { data: myTicket } = useMyTicket()
   const hasTicketHere = myTicket?.placeId === placeId
   const canViewStats = hasRole('ADMIN') || !!hasTicketHere
@@ -28,19 +39,24 @@ export default function PlaceQueuePage() {
   const { connected } = useQueueSocket()
   usePlaceStatsSocket(canViewStats ? placeId : undefined)
   const [showConfirm, setShowConfirm] = useState(false)
-  const [takeError, setTakeError] = useState<string | null>(null)
+
+  useToastOnError(placeLoadError, placeQueryError, {
+    title: 'No se pudo cargar el establecimiento',
+  })
+  useToastOnError(queueLoadError, queueQueryError, {
+    title: 'No se pudo cargar la fila',
+  })
 
   const isLoading = placeLoading || queueLoading || (canViewStats && statsLoading)
   const hasActiveTicket = !!myTicket
 
   async function handleTakeTicket() {
     if (!placeId || !canTakeTicket) return
-    setTakeError(null)
     try {
       await takeMutation.mutateAsync(placeId)
       setShowConfirm(false)
     } catch (err) {
-      setTakeError(err instanceof ApiError ? err.message : 'No se pudo tomar el turno.')
+      toastFromError(err, 'No se pudo tomar el turno.')
       setShowConfirm(false)
     }
   }
@@ -184,8 +200,6 @@ export default function PlaceQueuePage() {
               </div>
             </div>
           )}
-
-          {takeError && <Alert status="danger">{takeError}</Alert>}
 
           {canTakeTicket && (
             <Link to="/home" className="w-full">

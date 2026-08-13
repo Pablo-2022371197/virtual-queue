@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import mx.edu.uteq.virtual_queue_back.common.BusinessException;
+import mx.edu.uteq.virtual_queue_back.common.CounterLabelMode;
 import mx.edu.uteq.virtual_queue_back.common.ErrorCode;
 import mx.edu.uteq.virtual_queue_back.common.TicketStatus;
 import mx.edu.uteq.virtual_queue_back.common.UserRole;
@@ -125,6 +126,9 @@ public class PlaceService {
 
 	@Transactional
 	public PlaceDTO create(CreatePlaceRequest request) {
+		CounterLabelMode labelMode = request.counterLabelMode() != null
+				? request.counterLabelMode()
+				: CounterLabelMode.LETTERS;
 		Place place = Place.builder()
 				.id(UUID.randomUUID())
 				.name(request.name())
@@ -132,6 +136,7 @@ public class PlaceService {
 				.category(request.category())
 				.description(request.description())
 				.active(true)
+				.counterLabelMode(labelMode)
 				.build();
 		placeRepository.save(place);
 
@@ -153,6 +158,9 @@ public class PlaceService {
 		place.setAddress(request.address());
 		place.setCategory(request.category());
 		place.setDescription(request.description());
+		if (request.counterLabelMode() != null) {
+			place.setCounterLabelMode(request.counterLabelMode());
+		}
 		placeRepository.save(place);
 
 		ServiceQueue queue = queueRepository.findByPlaceId(placeId)

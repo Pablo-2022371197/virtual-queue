@@ -25,7 +25,9 @@ public record TicketEventDTO(
 						ticket.position(),
 						ticket.estimatedMinutes(),
 						ticket.status(),
-						ticket.counterNumber()));
+						ticket.issuedAt(),
+						ticket.counterNumber(),
+						ticket.counterLabel()));
 	}
 
 	public record TicketEventPayload(
@@ -36,6 +38,8 @@ public record TicketEventDTO(
 			int position,
 			int estimatedMinutes,
 			TicketStatus status,
-			Integer counterNumber) {
+			Instant issuedAt,
+			Integer counterNumber,
+			String counterLabel) {
 	}
 }

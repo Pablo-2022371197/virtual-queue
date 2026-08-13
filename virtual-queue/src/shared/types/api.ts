@@ -1,3 +1,5 @@
+export type CounterLabelMode = 'LETTERS' | 'NUMBERS'
+
 export type UserRole = 'CUSTOMER' | 'STAFF' | 'ADMIN'
 
 export type TicketStatus =
@@ -61,6 +63,7 @@ export interface Place {
   active: boolean
   createdAt?: string
   totalCounters?: number
+  counterLabelMode?: CounterLabelMode
 }
 
 export interface Queue {
@@ -71,6 +74,7 @@ export interface Queue {
   openCounters: number
   totalCounters?: number
   active: boolean
+  counterLabelMode?: CounterLabelMode
 }
 
 export interface PlaceStats {
@@ -106,6 +110,7 @@ export interface TicketEvent {
     position: number
     estimatedMinutes: number
     status: TicketStatus
+    issuedAt?: string
     counterNumber?: number | null
     counterLabel?: string | null
   }
@@ -127,6 +132,7 @@ export interface CreatePlaceRequest {
   category?: string
   description?: string
   totalCounters?: number
+  counterLabelMode?: CounterLabelMode
 }
 
 export interface UpdatePlaceRequest {
@@ -135,6 +141,7 @@ export interface UpdatePlaceRequest {
   category?: string
   description?: string
   totalCounters?: number
+  counterLabelMode?: CounterLabelMode
 }
 
 export interface CounterSlot {

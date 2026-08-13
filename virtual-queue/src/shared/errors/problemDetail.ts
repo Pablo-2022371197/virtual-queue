@@ -12,6 +12,9 @@ const ERROR_MESSAGES: Record<string, string> = {
   QUEUE_ALREADY_JOINED:
     'Ya tienes un turno activo en este establecimiento. Cancélalo antes de tomar otro.',
   INVALID_TICKET_TRANSITION: 'No se puede cambiar el estado del turno.',
+  STAFF_BUSY: 'Completa u omite el turno actual antes de llamar al siguiente.',
+  TICKET_OWNED_BY_OTHER_COUNTER: 'Este turno pertenece a otra caja.',
+  COUNTER_CLAIM_REQUIRED: 'Reclama una caja antes de operar la fila.',
   QUEUE_NOT_ACTIVE: 'La fila no está activa en este momento.',
   PLACE_NOT_ACTIVE: 'El establecimiento no está activo.',
   REFRESH_TOKEN_INVALID: 'Tu sesión expiró. Inicia sesión de nuevo.',

@@ -158,13 +158,12 @@ public class AuthService {
 	@Transactional
 	public void logout(LogoutRequest request) {
 		String hash = hashToken(request.refreshToken());
-		refreshTokenRepository.findByTokenHash(hash).ifPresent(token -> {
+		refreshTokenRepository.findByTokenHashWithUser(hash).ifPresent(token -> {
 			token.setRevokedAt(Instant.now());
 			refreshTokenRepository.save(token);
 			User user = token.getUser();
-			if (user != null && user.getClaimedCounter() != null) {
-				user.setClaimedCounter(null);
-				userRepository.save(user);
+			if (user != null) {
+				userRepository.clearClaimedCounter(user.getId());
 			}
 		});
 	}

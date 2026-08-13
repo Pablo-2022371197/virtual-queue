@@ -14,22 +14,22 @@ import {
 } from '@heroui/react'
 import { getPlaceQueue, searchPlaces } from '../../shared/api/places'
 import {
-  acceptTicket,
   callNextTicket,
   claimStaffCounter,
   completeTicket,
   expireTicket,
   getLastDismissedTicket,
+  getStaffActiveTicket,
   getStaffCounters,
   getStaffPlace,
   listQueueTickets,
-  startTicket,
 } from '../../shared/api/staff'
 import { TicketStatusChip } from '../tickets/TicketStatusChip'
 import { useAuth } from '../auth/useAuth'
-import { ApiError } from '../../shared/api/client'
+import { useToastOnError } from '../../shared/hooks/useToastOnError'
+import { toastFromError } from '../../shared/toast/appToast'
 import { counterLabel } from '../../shared/format/counterLabel'
-import type { Ticket, TicketStatus } from '../../shared/types/api'
+import type { CounterLabelMode, Ticket, TicketStatus } from '../../shared/types/api'
 
 const STATUS_FILTERS: TicketStatus[] = ['WAITING', 'NEARLY', 'CALLED', 'SERVING']
 
@@ -41,6 +41,23 @@ const STATUS_FILTER_LABELS: Record<TicketStatus, string> = {
   COMPLETED: 'Completado',
   CANCELLED: 'Cancelado',
   EXPIRED: 'Ausente',
+}
+
+function isActiveStaffTicket(ticket: Ticket | null | undefined): ticket is Ticket {
+  return (
+    ticket != null &&
+    (ticket.status === 'CALLED' || ticket.status === 'SERVING')
+  )
+}
+
+function ticketBelongsToMyCounter(
+  ticket: Ticket,
+  claimedCounter: number | null | undefined,
+  isStaffUser: boolean,
+): boolean {
+  if (!isStaffUser || claimedCounter == null) return true
+  if (ticket.counterNumber == null) return true
+  return ticket.counterNumber === claimedCounter
 }
 
 export default function StaffQueuePage() {
@@ -63,6 +80,9 @@ export default function StaffQueuePage() {
 
   const places = placesPage?.content ?? []
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | undefined>()
+  const [statusFilter, setStatusFilter] = useState<TicketStatus>('WAITING')
+  const [claimSelection, setClaimSelection] = useState<string>('')
+  const [claimOpen, setClaimOpen] = useState(false)
   const activePlaceId = isAdmin
     ? (selectedPlaceId ?? places[0]?.id)
     : staffPlace?.id
@@ -73,21 +93,28 @@ export default function StaffQueuePage() {
     enabled: !!activePlaceId,
   })
 
+  const labelMode: CounterLabelMode =
+    queue?.counterLabelMode ?? staffPlace?.counterLabelMode ?? 'LETTERS'
+
   const {
     data: counterState,
     isLoading: countersLoading,
+    isError: countersError,
+    error: countersQueryError,
     refetch: refetchCounters,
   } = useQuery({
     queryKey: ['staff', 'counters'],
     queryFn: getStaffCounters,
     enabled: isStaff,
-    refetchInterval: 15_000,
+    refetchInterval: claimOpen ? 3_000 : 15_000,
+    retry: 1,
   })
 
-  const [statusFilter, setStatusFilter] = useState<TicketStatus>('WAITING')
-  const [actionError, setActionError] = useState<string | null>(null)
-  const [claimSelection, setClaimSelection] = useState<string>('')
-  const [claimOpen, setClaimOpen] = useState(false)
+  useToastOnError(countersError, countersQueryError, {
+    title: 'No se pudo cargar la disponibilidad de cajas',
+    fallback: 'Reinicia el backend para aplicar la migración V6.',
+    onRetry: () => refetchCounters(),
+  })
 
   const needsClaim =
     isStaff &&
@@ -111,30 +138,45 @@ export default function StaffQueuePage() {
             queryClient.invalidateQueries({ queryKey: ['staff', 'counters'] })
           })
           .catch((err) =>
-            setActionError(
-              err instanceof ApiError ? err.message : 'No se pudo asignar la caja',
-            ),
+            toastFromError(err, 'No se pudo asignar la caja'),
           )
         return
       }
     }
 
-    const firstFree = counterState.counters.find((c) => !c.occupied)?.number
-    setClaimSelection(firstFree != null ? String(firstFree) : '')
     setClaimOpen(true)
-  }, [counterState, isStaff, queryClient])
+
+    const selectedStillFree =
+      claimSelection !== '' &&
+      counterState.counters.some(
+        (c) => String(c.number) === claimSelection && (!c.occupied || c.claimedByMe),
+      )
+    if (!selectedStillFree) {
+      const firstFree = counterState.counters.find((c) => !c.occupied)?.number
+      setClaimSelection(firstFree != null ? String(firstFree) : '')
+    }
+  }, [counterState, isStaff, queryClient, claimSelection])
+
+  const queueReady = !!queue?.id && (!isStaff || !needsClaim)
+
+  const { data: activeTicket = null } = useQuery({
+    queryKey: ['staff', 'queue', queue?.id, 'active-ticket'],
+    queryFn: () => getStaffActiveTicket(queue!.id),
+    enabled: queueReady && isStaff,
+    refetchInterval: 5_000,
+  })
 
   const { data: tickets = [], isLoading: ticketsLoading } = useQuery({
     queryKey: ['staff', 'queue', queue?.id, statusFilter],
     queryFn: () => listQueueTickets(queue!.id, statusFilter),
-    enabled: !!queue?.id && (!isStaff || !needsClaim),
+    enabled: queueReady,
     refetchInterval: 10_000,
   })
 
   const { data: lastDismissed = null } = useQuery({
     queryKey: ['staff', 'queue', queue?.id, 'last-dismissed'],
     queryFn: () => getLastDismissedTicket(queue!.id),
-    enabled: !!queue?.id && (!isStaff || !needsClaim),
+    enabled: queueReady,
     refetchInterval: 10_000,
   })
 
@@ -149,39 +191,25 @@ export default function StaffQueuePage() {
       setClaimOpen(false)
       invalidate()
     },
-    onError: (err) =>
-      setActionError(err instanceof ApiError ? err.message : 'No se pudo reclamar la caja'),
+    onError: (err) => toastFromError(err, 'No se pudo reclamar la caja'),
   })
 
   const callNext = useMutation({
     mutationFn: () => callNextTicket(queue!.id),
     onSuccess: invalidate,
-    onError: (err) => setActionError(err instanceof ApiError ? err.message : 'Error al llamar turno'),
-  })
-
-  const accept = useMutation({
-    mutationFn: (ticketId: string) => acceptTicket(ticketId),
-    onSuccess: invalidate,
-    onError: (err) =>
-      setActionError(err instanceof ApiError ? err.message : 'Error al aceptar turno'),
-  })
-
-  const start = useMutation({
-    mutationFn: (id: string) => startTicket(id),
-    onSuccess: invalidate,
-    onError: (err) => setActionError(err instanceof ApiError ? err.message : 'Error al iniciar'),
+    onError: (err) => toastFromError(err, 'Error al llamar turno'),
   })
 
   const complete = useMutation({
     mutationFn: (id: string) => completeTicket(id),
     onSuccess: invalidate,
-    onError: (err) => setActionError(err instanceof ApiError ? err.message : 'Error al completar'),
+    onError: (err) => toastFromError(err, 'Error al completar'),
   })
 
   const expire = useMutation({
     mutationFn: (id: string) => expireTicket(id),
     onSuccess: invalidate,
-    onError: (err) => setActionError(err instanceof ApiError ? err.message : 'Error al marcar ausente'),
+    onError: (err) => toastFromError(err, 'Error al omitir turno'),
   })
 
   const isLoading =
@@ -194,8 +222,13 @@ export default function StaffQueuePage() {
   const claimedCode =
     counterState?.claimedCode ??
     (counterState?.claimedCounter != null
-      ? counterLabel(counterState.claimedCounter)
+      ? counterLabel(counterState.claimedCounter, labelMode)
       : null)
+
+  const hasActiveTicket = isActiveStaffTicket(activeTicket)
+  const listTickets = hasActiveTicket
+    ? tickets.filter((ticket) => ticket.id !== activeTicket.id)
+    : tickets
 
   return (
     <section className="flex flex-col gap-6">
@@ -250,6 +283,43 @@ export default function StaffQueuePage() {
         </div>
       )}
 
+      {hasActiveTicket && (
+        <Card className="border-2 border-accent bg-accent/5">
+          <Card.Header>
+            <Card.Title className="text-lg">Turno en atención</Card.Title>
+            <Card.Description>
+              Caja{' '}
+              {activeTicket.counterLabel ??
+                counterLabel(activeTicket.counterNumber, labelMode)}
+            </Card.Description>
+          </Card.Header>
+          <Card.Content className="flex flex-col items-center gap-2 py-4">
+            <p className="text-4xl font-bold tracking-tight text-foreground">
+              {activeTicket.number}
+            </p>
+            <TicketStatusChip status={activeTicket.status} />
+          </Card.Content>
+          <Card.Footer className="flex flex-wrap gap-2">
+            <Button
+              variant="primary"
+              className="flex-1"
+              onPress={() => complete.mutate(activeTicket.id)}
+              isDisabled={complete.isPending}
+            >
+              {complete.isPending ? <Spinner size="sm" color="current" /> : 'Completar'}
+            </Button>
+            <Button
+              variant="danger"
+              className="flex-1"
+              onPress={() => expire.mutate(activeTicket.id)}
+              isDisabled={expire.isPending}
+            >
+              {expire.isPending ? <Spinner size="sm" color="current" /> : 'Omitir'}
+            </Button>
+          </Card.Footer>
+        </Card>
+      )}
+
       {queue && (
         <Card>
           <Card.Header>
@@ -266,19 +336,18 @@ export default function StaffQueuePage() {
             <Button
               variant="primary"
               className="w-full"
-              onPress={() => {
-                setActionError(null)
-                callNext.mutate()
-              }}
-              isDisabled={callNext.isPending || (isStaff && needsClaim)}
+              onPress={() => callNext.mutate()}
+              isDisabled={
+                callNext.isPending ||
+                (isStaff && needsClaim) ||
+                (isStaff && hasActiveTicket)
+              }
             >
               {callNext.isPending ? <Spinner size="sm" color="current" /> : 'Llamar siguiente turno'}
             </Button>
           </Card.Footer>
         </Card>
       )}
-
-      {actionError && <Alert status="danger">{actionError}</Alert>}
 
       {lastDismissed && (
         <Alert status={lastDismissed.status === 'CANCELLED' ? 'warning' : 'accent'}>
@@ -303,70 +372,52 @@ export default function StaffQueuePage() {
       {ticketsLoading && <Spinner size="sm" />}
 
       <div className="grid gap-3">
-        {tickets.map((ticket) => (
-          <Card key={ticket.id}>
-            <Card.Content className="flex flex-col gap-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="font-semibold text-foreground">{ticket.number}</p>
-                <p className="text-xs text-muted">Posición {ticket.position}</p>
-                {(ticket.counterLabel || ticket.counterNumber != null) && (
-                  <Chip size="sm" variant="soft" color="accent" className="mt-1">
-                    Caja {ticket.counterLabel ?? counterLabel(ticket.counterNumber)}
-                  </Chip>
+        {listTickets.map((ticket) => {
+          const canOperate = ticketBelongsToMyCounter(
+            ticket,
+            counterState?.claimedCounter,
+            isStaff,
+          )
+          return (
+            <Card key={ticket.id}>
+              <Card.Content className="flex flex-col gap-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-semibold text-foreground">{ticket.number}</p>
+                  <p className="text-xs text-muted">Posición {ticket.position}</p>
+                  {(ticket.counterLabel || ticket.counterNumber != null) && (
+                    <Chip size="sm" variant="soft" color="accent" className="mt-1">
+                      Caja{' '}
+                      {ticket.counterLabel ??
+                        counterLabel(ticket.counterNumber, labelMode)}
+                    </Chip>
+                  )}
+                </div>
+                <TicketStatusChip status={ticket.status} />
+                {canOperate && ticket.status === 'SERVING' && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onPress={() => complete.mutate(ticket.id)}
+                      isDisabled={complete.isPending || (isStaff && needsClaim)}
+                    >
+                      Completar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      onPress={() => expire.mutate(ticket.id)}
+                      isDisabled={expire.isPending || (isStaff && needsClaim)}
+                    >
+                      Omitir
+                    </Button>
+                  </div>
                 )}
-              </div>
-              <TicketStatusChip status={ticket.status} />
-              <div className="flex flex-wrap gap-2">
-                {(ticket.status === 'WAITING' || ticket.status === 'NEARLY') && (
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    onPress={() => {
-                      setActionError(null)
-                      accept.mutate(ticket.id)
-                    }}
-                    isDisabled={accept.isPending || (isStaff && needsClaim)}
-                  >
-                    Aceptar
-                  </Button>
-                )}
-                {ticket.status === 'CALLED' && (
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    onPress={() => start.mutate(ticket.id)}
-                    isDisabled={isStaff && needsClaim}
-                  >
-                    Iniciar
-                  </Button>
-                )}
-                {ticket.status === 'SERVING' && (
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    onPress={() => complete.mutate(ticket.id)}
-                    isDisabled={isStaff && needsClaim}
-                  >
-                    Completar
-                  </Button>
-                )}
-                {(ticket.status === 'CALLED' ||
-                  ticket.status === 'WAITING' ||
-                  ticket.status === 'NEARLY') && (
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    onPress={() => expire.mutate(ticket.id)}
-                    isDisabled={isStaff && needsClaim}
-                  >
-                    Ausente
-                  </Button>
-                )}
-              </div>
-            </Card.Content>
-          </Card>
-        ))}
-        {!ticketsLoading && !needsClaim && tickets.length === 0 && (
+              </Card.Content>
+            </Card>
+          )
+        })}
+        {!ticketsLoading && !needsClaim && listTickets.length === 0 && (
           <Alert status="accent">No hay turnos con estado {statusFilter}.</Alert>
         )}
       </div>
@@ -415,22 +466,12 @@ export default function StaffQueuePage() {
                   </Radio>
                 ))}
               </RadioGroup>
-              <Button
-                variant="secondary"
-                size="sm"
-                onPress={() => refetchCounters()}
-              >
-                Actualizar disponibilidad
-              </Button>
             </Modal.Body>
             <Modal.Footer>
               <Button
                 variant="primary"
                 isDisabled={!claimSelection || claimMutation.isPending}
-                onPress={() => {
-                  setActionError(null)
-                  claimMutation.mutate(Number(claimSelection))
-                }}
+                onPress={() => claimMutation.mutate(Number(claimSelection))}
               >
                 {claimMutation.isPending ? (
                   <Spinner size="sm" color="current" />

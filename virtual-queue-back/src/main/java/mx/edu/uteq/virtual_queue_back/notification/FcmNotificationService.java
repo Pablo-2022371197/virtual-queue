@@ -35,7 +35,10 @@ public class FcmNotificationService {
 		String base = "Turno " + ticket.number() + " en " + ticket.placeName();
 		if (ticket.counterNumber() != null
 				&& (ticket.status() == TicketStatus.CALLED || ticket.status() == TicketStatus.SERVING)) {
-			return base + " — Ventanilla " + ticket.counterNumber();
+			String label = ticket.counterLabel() != null
+					? ticket.counterLabel()
+					: String.valueOf(ticket.counterNumber());
+			return base + " — Caja " + label;
 		}
 		return base;
 	}
@@ -80,6 +83,9 @@ public class FcmNotificationService {
 		data.put("position", String.valueOf(ticket.position()));
 		if (ticket.counterNumber() != null) {
 			data.put("counterNumber", String.valueOf(ticket.counterNumber()));
+		}
+		if (ticket.counterLabel() != null) {
+			data.put("counterLabel", ticket.counterLabel());
 		}
 		return data;
 	}

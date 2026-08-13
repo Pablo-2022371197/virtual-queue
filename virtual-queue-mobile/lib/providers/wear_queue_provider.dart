@@ -24,6 +24,7 @@ class WearQueueState {
     this.estimatedMinutes = 0,
     this.status = TicketStatus.waiting,
     this.counterNumber,
+    this.counterLabel,
     this.issuedAt,
     this.alertMessage,
     this.updatedAt,
@@ -37,6 +38,7 @@ class WearQueueState {
   final int estimatedMinutes;
   final TicketStatus status;
   final int? counterNumber;
+  final String? counterLabel;
   final String? issuedAt;
   final String? alertMessage;
   final String? updatedAt;
@@ -50,6 +52,7 @@ class WearQueueState {
     int? estimatedMinutes,
     TicketStatus? status,
     int? counterNumber,
+    String? counterLabel,
     String? issuedAt,
     String? alertMessage,
     String? updatedAt,
@@ -64,6 +67,7 @@ class WearQueueState {
       estimatedMinutes: estimatedMinutes ?? this.estimatedMinutes,
       status: status ?? this.status,
       counterNumber: counterNumber ?? this.counterNumber,
+      counterLabel: counterLabel ?? this.counterLabel,
       issuedAt: issuedAt ?? this.issuedAt,
       alertMessage: clearAlert ? null : (alertMessage ?? this.alertMessage),
       updatedAt: updatedAt ?? this.updatedAt,
@@ -79,6 +83,7 @@ class WearQueueState {
         'estimatedMinutes': estimatedMinutes,
         'status': status.name.toUpperCase(),
         if (counterNumber != null) 'counterNumber': counterNumber,
+        if (counterLabel != null) 'counterLabel': counterLabel,
         if (issuedAt != null) 'issuedAt': issuedAt,
         'alertMessage': alertMessage,
         'updatedAt': updatedAt,
@@ -103,6 +108,7 @@ class WearQueueState {
       counterNumber: json['counterNumber'] is int
           ? json['counterNumber'] as int
           : int.tryParse(json['counterNumber']?.toString() ?? ''),
+      counterLabel: json['counterLabel']?.toString(),
       issuedAt: json['issuedAt']?.toString(),
       alertMessage: json['alertMessage']?.toString(),
       updatedAt: json['updatedAt']?.toString(),
@@ -188,11 +194,12 @@ class WearQueueNotifier extends StateNotifier<WearQueueState> {
     required int estimatedMinutes,
     required TicketStatus status,
     int? counterNumber,
+    String? counterLabel,
     String? issuedAt,
     String? updatedAt,
   }) {
     _liveUpdateApplied = true;
-    final viewState = status == TicketStatus.called
+    final viewState = (status == TicketStatus.called || status == TicketStatus.serving)
         ? WearViewState.called
         : WearViewState.active;
     state = WearQueueState(
@@ -204,6 +211,7 @@ class WearQueueNotifier extends StateNotifier<WearQueueState> {
       estimatedMinutes: estimatedMinutes,
       status: status,
       counterNumber: counterNumber,
+      counterLabel: counterLabel,
       issuedAt: issuedAt ?? state.issuedAt,
       updatedAt: updatedAt ?? DateTime.now().toUtc().toIso8601String(),
     );

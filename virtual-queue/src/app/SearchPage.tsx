@@ -1,9 +1,14 @@
 import { Link } from 'react-router-dom'
-import { Alert, Button, Card, Chip, Input, Spinner } from '@heroui/react'
+import { Button, Card, Chip, Input, Spinner } from '@heroui/react'
 import { useSearchPlaces } from '../hooks/useSearchPlaces'
+import { useToastOnError } from '../shared/hooks/useToastOnError'
 
 export default function SearchPage() {
-  const { results, isLoading, isError, query, setQuery } = useSearchPlaces()
+  const { results, isLoading, isError, error, query, setQuery } = useSearchPlaces()
+
+  useToastOnError(isError, error, {
+    fallback: 'No se pudieron cargar los establecimientos.',
+  })
 
   return (
     <section className="flex flex-col gap-6">
@@ -23,13 +28,6 @@ export default function SearchPage() {
         onChange={(event) => setQuery(event.target.value)}
         fullWidth
       />
-
-      {isError && (
-        <Alert status="warning">
-          No se pudieron cargar los establecimientos. Verifica que el servidor
-          esté en línea.
-        </Alert>
-      )}
 
       {isLoading && (
         <div className="flex items-center justify-center gap-3 py-14">

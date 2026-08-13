@@ -36,6 +36,7 @@ class TicketEventPayload {
     required this.status,
     this.counterNumber,
     this.counterLabel,
+    this.issuedAt,
   });
 
   final String id;
@@ -47,6 +48,7 @@ class TicketEventPayload {
   final TicketStatus status;
   final int? counterNumber;
   final String? counterLabel;
+  final String? issuedAt;
 
   factory TicketEventPayload.fromJson(Map<String, dynamic> json) {
     return TicketEventPayload(
@@ -65,6 +67,7 @@ class TicketEventPayload {
           ? json['counterNumber'] as int
           : int.tryParse(json['counterNumber']?.toString() ?? ''),
       counterLabel: json['counterLabel']?.toString(),
+      issuedAt: json['issuedAt']?.toString(),
     );
   }
 }

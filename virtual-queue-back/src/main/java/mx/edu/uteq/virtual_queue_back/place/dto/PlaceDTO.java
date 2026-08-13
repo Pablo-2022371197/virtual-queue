@@ -3,6 +3,8 @@ package mx.edu.uteq.virtual_queue_back.place.dto;
 import java.time.Instant;
 import java.util.UUID;
 
+import mx.edu.uteq.virtual_queue_back.common.CounterLabelMode;
+
 public record PlaceDTO(
 		UUID id,
 		String name,
@@ -11,5 +13,6 @@ public record PlaceDTO(
 		String description,
 		boolean active,
 		Instant createdAt,
-		int totalCounters) {
+		int totalCounters,
+		CounterLabelMode counterLabelMode) {
 }

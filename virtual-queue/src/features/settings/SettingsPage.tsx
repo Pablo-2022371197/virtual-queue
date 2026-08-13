@@ -1,23 +1,19 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Alert, Button, Card, Input, Label, Spinner, TextField } from '@heroui/react'
+import { Button, Card, Input, Label, Spinner, TextField } from '@heroui/react'
 import { PasswordField } from '../../shared/components/PasswordField'
 import { useAuth } from '../auth/useAuth'
-import { ApiError } from '../../shared/api/client'
 import { apiChangePassword, apiPatchProfile } from '../../shared/api/auth'
+import { toastFromError, toastSuccess, toastWarning } from '../../shared/toast/appToast'
 
 export default function SettingsPage() {
   const { user, refreshUser } = useAuth()
   const [fullName, setFullName] = useState('')
   const [username, setUsername] = useState('')
-  const [profileError, setProfileError] = useState<string | null>(null)
-  const [profileSuccess, setProfileSuccess] = useState<string | null>(null)
   const [profileLoading, setProfileLoading] = useState(false)
 
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [passwordError, setPasswordError] = useState<string | null>(null)
-  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null)
   const [passwordLoading, setPasswordLoading] = useState(false)
 
   useEffect(() => {
@@ -29,8 +25,6 @@ export default function SettingsPage() {
 
   async function handleProfileSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setProfileError(null)
-    setProfileSuccess(null)
     setProfileLoading(true)
 
     try {
@@ -39,11 +33,9 @@ export default function SettingsPage() {
         username: username.trim(),
       })
       await refreshUser()
-      setProfileSuccess('Perfil actualizado correctamente.')
+      toastSuccess('Perfil actualizado correctamente.')
     } catch (err) {
-      setProfileError(
-        err instanceof ApiError ? err.message : 'No se pudo actualizar el perfil.',
-      )
+      toastFromError(err, 'No se pudo actualizar el perfil.')
     } finally {
       setProfileLoading(false)
     }
@@ -51,15 +43,13 @@ export default function SettingsPage() {
 
   async function handlePasswordSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setPasswordError(null)
-    setPasswordSuccess(null)
 
     if (newPassword.length < 8) {
-      setPasswordError('La nueva contraseña debe tener al menos 8 caracteres.')
+      toastWarning('La nueva contraseña debe tener al menos 8 caracteres.')
       return
     }
     if (newPassword !== confirmPassword) {
-      setPasswordError('Las contraseñas no coinciden.')
+      toastWarning('Las contraseñas no coinciden.')
       return
     }
 
@@ -72,11 +62,9 @@ export default function SettingsPage() {
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
-      setPasswordSuccess('Contraseña actualizada correctamente.')
+      toastSuccess('Contraseña actualizada correctamente.')
     } catch (err) {
-      setPasswordError(
-        err instanceof ApiError ? err.message : 'No se pudo cambiar la contraseña.',
-      )
+      toastFromError(err, 'No se pudo cambiar la contraseña.')
     } finally {
       setPasswordLoading(false)
     }
@@ -99,8 +87,6 @@ export default function SettingsPage() {
           <Card.Description>Información visible en tu sesión.</Card.Description>
         </Card.Header>
         <Card.Content className="flex flex-col gap-4">
-          {profileError && <Alert status="danger">{profileError}</Alert>}
-          {profileSuccess && <Alert status="success">{profileSuccess}</Alert>}
           <form id="profile-form" className="flex flex-col gap-4" onSubmit={handleProfileSubmit}>
             <TextField
               name="fullName"
@@ -143,8 +129,6 @@ export default function SettingsPage() {
           <Card.Description>Usa al menos 8 caracteres.</Card.Description>
         </Card.Header>
         <Card.Content className="flex flex-col gap-4">
-          {passwordError && <Alert status="danger">{passwordError}</Alert>}
-          {passwordSuccess && <Alert status="success">{passwordSuccess}</Alert>}
           <form id="password-form" className="flex flex-col gap-4" onSubmit={handlePasswordSubmit}>
             <PasswordField
               label="Contraseña actual"

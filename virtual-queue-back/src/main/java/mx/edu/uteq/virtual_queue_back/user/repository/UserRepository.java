@@ -60,4 +60,11 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 			WHERE u.place.id = :placeId AND u.claimedCounter > :maxCounter
 			""")
 	int clearClaimsAbove(@Param("placeId") UUID placeId, @Param("maxCounter") int maxCounter);
+
+	@Modifying(clearAutomatically = true)
+	@Query("""
+			UPDATE User u SET u.claimedCounter = NULL
+			WHERE u.id = :userId AND u.claimedCounter IS NOT NULL
+			""")
+	int clearClaimedCounter(@Param("userId") UUID userId);
 }

@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Alert, Button, Input, Label, TextField, TextArea } from '@heroui/react'
+import { toastWarning } from '../../../shared/toast/appToast'
 
 interface ContactFormProps {
   id?: string
@@ -12,12 +13,11 @@ export function ContactForm({ id = 'contact-form', compact = false }: ContactFor
   const [message, setMessage] = useState('')
   const [sent, setSent] = useState(false)
   const [consent, setConsent] = useState(false)
-  const [consentError, setConsentError] = useState(false)
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!consent) {
-      setConsentError(true)
+      toastWarning('Debes aceptar la política de privacidad.')
       return
     }
     const subject = encodeURIComponent(`Contacto Virtual Queue — ${name}`)
@@ -79,17 +79,11 @@ export function ContactForm({ id = 'contact-form', compact = false }: ContactFor
         <input
           type="checkbox"
           checked={consent}
-          onChange={(e) => {
-            setConsent(e.target.checked)
-            if (e.target.checked) setConsentError(false)
-          }}
+          onChange={(e) => setConsent(e.target.checked)}
           className="mt-0.5"
         />
         Acepto el tratamiento de mis datos según la política de privacidad.
       </label>
-      {consentError && (
-        <Alert status="danger">Debes aceptar la política de privacidad.</Alert>
-      )}
 
       <Button type="submit" variant="primary" fullWidth>
         Enviar mensaje

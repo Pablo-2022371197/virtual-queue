@@ -104,4 +104,17 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID> {
 
 	Optional<Ticket> findFirstByQueueIdAndStatusInOrderByCancelledAtDescIssuedAtDesc(
 			UUID queueId, Collection<TicketStatus> statuses);
+
+	@Query("""
+			SELECT t FROM Ticket t
+			JOIN FETCH t.queue q
+			JOIN FETCH q.place
+			JOIN FETCH t.user
+			LEFT JOIN FETCH t.assignedStaff
+			WHERE t.assignedStaff.id = :staffId
+			  AND t.status IN :busyStatuses
+			""")
+	Optional<Ticket> findBusyByAssignedStaff(
+			@Param("staffId") UUID staffId,
+			@Param("busyStatuses") Collection<TicketStatus> busyStatuses);
 }

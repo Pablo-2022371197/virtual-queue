@@ -71,6 +71,15 @@ public class StaffController {
 		return ResponseEntity.ok(ticket);
 	}
 
+	@GetMapping("/queues/{queueId}/active-ticket")
+	public ResponseEntity<TicketDTO> activeTicket(@PathVariable UUID queueId) {
+		TicketDTO ticket = ticketService.getActiveTicket(queueId);
+		if (ticket == null) {
+			return ResponseEntity.noContent().build();
+		}
+		return ResponseEntity.ok(ticket);
+	}
+
 	@PostMapping("/queues/{queueId}/call-next")
 	public TicketDTO callNext(@PathVariable UUID queueId) {
 		return ticketService.callNext(queueId);

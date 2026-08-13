@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
-  Alert,
   Button,
   Card,
   Input,
@@ -13,7 +12,11 @@ import { AuthPageShell } from './AuthPageShell'
 import { PrivacyConsentField } from './PrivacyConsentField'
 import { PasswordField } from '../shared/components/PasswordField'
 import { useAuth } from '../features/auth/useAuth'
-import { ApiError } from '../shared/api/client'
+import {
+  toastFromError,
+  toastSuccess,
+  toastWarning,
+} from '../shared/toast/appToast'
 import type { UserRole } from '../shared/types/api'
 
 const STAFF_KEY_PATTERN = /^[A-HJ-NP-Z2-9]{8}$/
@@ -29,8 +32,6 @@ export default function RegisterPage() {
   const [role, setRole] = useState<'CUSTOMER' | 'STAFF'>('CUSTOMER')
   const [staffRegistrationKey, setStaffRegistrationKey] = useState('')
   const [acceptedPolicies, setAcceptedPolicies] = useState(false)
-  const [showConsentError, setShowConsentError] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
@@ -40,28 +41,26 @@ export default function RegisterPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setError(null)
-    setShowConsentError(false)
 
     if (!acceptedPolicies) {
-      setShowConsentError(true)
+      toastWarning('Debes aceptar la política de privacidad.')
       return
     }
 
     if (password.length < 8) {
-      setError('La contraseña debe tener al menos 8 caracteres.')
+      toastWarning('La contraseña debe tener al menos 8 caracteres.')
       return
     }
 
     if (password !== confirmPassword) {
-      setError('Las contraseñas no coinciden.')
+      toastWarning('Las contraseñas no coinciden.')
       return
     }
 
     if (role === 'STAFF') {
       const key = staffRegistrationKey.trim().toUpperCase()
       if (!STAFF_KEY_PATTERN.test(key)) {
-        setError(
+        toastWarning(
           'La clave de sucursal debe tener exactamente 8 caracteres alfanuméricos (sin 0, O, 1, I ni L).',
         )
         return
@@ -83,15 +82,12 @@ export default function RegisterPage() {
       }
       await register(payload)
       setSuccess(true)
+      toastSuccess('Cuenta creada correctamente. Redirigiendo…')
       window.setTimeout(() => {
         navigate(role === 'STAFF' ? '/staff' : '/home', { replace: true })
       }, 1200)
     } catch (err) {
-      const message =
-        err instanceof ApiError
-          ? err.message
-          : 'No se pudo completar el registro. Intenta de nuevo.'
-      setError(message)
+      toastFromError(err, 'No se pudo completar el registro. Intenta de nuevo.')
     } finally {
       setIsLoading(false)
     }
@@ -108,13 +104,6 @@ export default function RegisterPage() {
         </Card.Header>
 
         <Card.Content className="flex flex-col gap-4">
-          {error && <Alert status="danger">{error}</Alert>}
-          {success && (
-            <Alert status="success">
-              Cuenta creada correctamente. Redirigiendo…
-            </Alert>
-          )}
-
           <form
             id="register-form"
             className="auth-form flex flex-col gap-4"
@@ -211,11 +200,7 @@ export default function RegisterPage() {
 
             <PrivacyConsentField
               isSelected={acceptedPolicies}
-              onChange={(value) => {
-                setAcceptedPolicies(value)
-                if (value) setShowConsentError(false)
-              }}
-              isInvalid={showConsentError}
+              onChange={setAcceptedPolicies}
             />
           </form>
         </Card.Content>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert } from '@heroui/react'
+import { toastWarning } from '../../shared/toast/appToast'
 
 interface TurnCalledMessage {
   type: 'TURN_CALLED'
@@ -20,6 +20,7 @@ export default function DashboardStats({
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [widgetAvailable, setWidgetAvailable] = useState(true)
   const [widgetChecked, setWidgetChecked] = useState(false)
+  const warnedRef = useRef(false)
 
   useEffect(() => {
     if (!placeId) return
@@ -29,6 +30,15 @@ export default function DashboardStats({
       .catch(() => setWidgetAvailable(false))
       .finally(() => setWidgetChecked(true))
   }, [placeId])
+
+  useEffect(() => {
+    if (!widgetChecked || widgetAvailable || warnedRef.current) return
+    warnedRef.current = true
+    toastWarning(
+      'Widget de estadísticas no disponible',
+      'Los datos se muestran en el panel superior.',
+    )
+  }, [widgetChecked, widgetAvailable])
 
   useEffect(() => {
     function handleMessage(event: MessageEvent<TurnCalledMessage>) {
@@ -46,11 +56,7 @@ export default function DashboardStats({
   if (!placeId) return null
 
   if (widgetChecked && !widgetAvailable) {
-    return (
-      <Alert status="warning">
-        El widget de estadísticas no está disponible. Los datos se muestran en el panel superior.
-      </Alert>
-    )
+    return null
   }
 
   return (

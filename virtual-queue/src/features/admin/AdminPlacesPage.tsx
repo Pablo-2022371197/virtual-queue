@@ -24,8 +24,9 @@ import {
   updatePlaceStatus,
   type StaffRegistrationKeyResponse,
 } from '../../shared/api/places'
-import { ApiError } from '../../shared/api/client'
-import type { Place } from '../../shared/types/api'
+import { useToastOnError } from '../../shared/hooks/useToastOnError'
+import { toastFromError } from '../../shared/toast/appToast'
+import type { CounterLabelMode, Place } from '../../shared/types/api'
 
 type StatusFilter = 'all' | 'active' | 'inactive'
 type PlaceFormMode = 'create' | 'edit' | null
@@ -36,28 +37,37 @@ const STATUS_OPTIONS: { id: StatusFilter; label: string }[] = [
   { id: 'inactive', label: 'Inactivos' },
 ]
 
+const LABEL_MODE_OPTIONS: { id: CounterLabelMode; label: string }[] = [
+  { id: 'LETTERS', label: 'Letras (A, B, C…)' },
+  { id: 'NUMBERS', label: 'Números (1, 2, 3…)' },
+]
+
 function PlaceFormFields({
   name,
   address,
   category,
   description,
   totalCounters,
+  counterLabelMode,
   onNameChange,
   onAddressChange,
   onCategoryChange,
   onDescriptionChange,
   onTotalCountersChange,
+  onCounterLabelModeChange,
 }: {
   name: string
   address: string
   category: string
   description: string
   totalCounters: string
+  counterLabelMode: CounterLabelMode
   onNameChange: (value: string) => void
   onAddressChange: (value: string) => void
   onCategoryChange: (value: string) => void
   onDescriptionChange: (value: string) => void
   onTotalCountersChange: (value: string) => void
+  onCounterLabelModeChange: (value: CounterLabelMode) => void
 }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
@@ -87,6 +97,27 @@ function PlaceFormFields({
         <Label>Cantidad de cajas</Label>
         <Input type="number" min={1} placeholder="1" />
       </TextField>
+      <Select
+        className="w-full sm:col-span-2"
+        selectedKey={counterLabelMode}
+        onSelectionChange={(key) => onCounterLabelModeChange(key as CounterLabelMode)}
+      >
+        <Label>Etiquetas de caja</Label>
+        <Select.Trigger>
+          <Select.Value />
+          <Select.Indicator />
+        </Select.Trigger>
+        <Select.Popover>
+          <ListBox>
+            {LABEL_MODE_OPTIONS.map((option) => (
+              <ListBox.Item key={option.id} id={option.id} textValue={option.label}>
+                {option.label}
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+            ))}
+          </ListBox>
+        </Select.Popover>
+      </Select>
     </div>
   )
 }
@@ -100,11 +131,15 @@ export default function AdminPlacesPage() {
   const activeParam =
     statusFilter === 'all' ? undefined : statusFilter === 'active'
 
-  const { data: placesPage, isLoading, isError } = useAdminPlaces({
+  const { data: placesPage, isLoading, isError, error } = useAdminPlaces({
     query: searchQuery.trim() || undefined,
     category: categoryFilter === 'all' ? undefined : categoryFilter,
     active: activeParam,
     size: 100,
+  })
+
+  useToastOnError(isError, error, {
+    fallback: 'No se pudieron cargar los establecimientos.',
   })
 
   const places = placesPage?.content ?? []
@@ -124,7 +159,7 @@ export default function AdminPlacesPage() {
   const [category, setCategory] = useState('')
   const [description, setDescription] = useState('')
   const [totalCounters, setTotalCounters] = useState('1')
-  const [error, setError] = useState<string | null>(null)
+  const [counterLabelMode, setCounterLabelMode] = useState<CounterLabelMode>('LETTERS')
   const [confirmRotatePlace, setConfirmRotatePlace] = useState<Place | null>(null)
   const [generatedKey, setGeneratedKey] = useState<StaffRegistrationKeyResponse | null>(null)
   const [copied, setCopied] = useState(false)
@@ -139,12 +174,13 @@ export default function AdminPlacesPage() {
         category,
         description,
         totalCounters: Math.max(Number(totalCounters) || 1, 1),
+        counterLabelMode,
       }),
     onSuccess: () => {
       invalidate()
       closeFormModal()
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : 'Error al crear'),
+    onError: (err) => toastFromError(err, 'Error al crear'),
   })
 
   const updateMutation = useMutation({
@@ -155,18 +191,20 @@ export default function AdminPlacesPage() {
         category,
         description,
         totalCounters: Math.max(Number(totalCounters) || 1, 1),
+        counterLabelMode,
       }),
     onSuccess: () => {
       invalidate()
       closeFormModal()
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : 'Error al actualizar'),
+    onError: (err) => toastFromError(err, 'Error al actualizar'),
   })
 
   const toggleStatus = useMutation({
     mutationFn: ({ id, active }: { id: string; active: boolean }) =>
       updatePlaceStatus(id, active),
     onSuccess: invalidate,
+    onError: (err) => toastFromError(err, 'No se pudo cambiar el estado'),
   })
 
   const rotateKeyMutation = useMutation({
@@ -176,29 +214,28 @@ export default function AdminPlacesPage() {
       setGeneratedKey(response)
       setCopied(false)
     },
-    onError: (err) =>
-      setError(err instanceof ApiError ? err.message : 'No se pudo generar la clave'),
+    onError: (err) => toastFromError(err, 'No se pudo generar la clave'),
   })
 
   function openCreateModal() {
-    setError(null)
     setEditing(null)
     setName('')
     setAddress('')
     setCategory('')
     setDescription('')
     setTotalCounters('1')
+    setCounterLabelMode('LETTERS')
     setFormMode('create')
   }
 
   function openEditModal(place: Place) {
-    setError(null)
     setEditing(place)
     setName(place.name)
     setAddress(place.address ?? '')
     setCategory(place.category ?? '')
     setDescription(place.description ?? '')
     setTotalCounters(String(place.totalCounters ?? 1))
+    setCounterLabelMode(place.counterLabelMode ?? 'LETTERS')
     setFormMode('edit')
   }
 
@@ -210,7 +247,7 @@ export default function AdminPlacesPage() {
     setCategory('')
     setDescription('')
     setTotalCounters('1')
-    setError(null)
+    setCounterLabelMode('LETTERS')
   }
 
   async function copyKey() {
@@ -306,14 +343,6 @@ export default function AdminPlacesPage() {
         </Select>
       </div>
 
-      {error && <Alert status="danger">{error}</Alert>}
-
-      {isError && (
-        <Alert status="warning">
-          No se pudieron cargar los establecimientos. Verifica que el servidor esté en línea.
-        </Alert>
-      )}
-
       {isLoading ? (
         <div className="flex items-center justify-center gap-3 py-14">
           <Spinner size="sm" />
@@ -395,10 +424,7 @@ export default function AdminPlacesPage() {
                         <Button
                           size="sm"
                           variant="secondary"
-                          onPress={() => {
-                            setError(null)
-                            setConfirmRotatePlace(place)
-                          }}
+                          onPress={() => setConfirmRotatePlace(place)}
                         >
                           <KeyRound size={14} />
                           Clave
@@ -429,11 +455,13 @@ export default function AdminPlacesPage() {
                 category={category}
                 description={description}
                 totalCounters={totalCounters}
+                counterLabelMode={counterLabelMode}
                 onNameChange={setName}
                 onAddressChange={setAddress}
                 onCategoryChange={setCategory}
                 onDescriptionChange={setDescription}
                 onTotalCountersChange={setTotalCounters}
+                onCounterLabelModeChange={setCounterLabelMode}
               />
             </Modal.Body>
             <Modal.Footer>

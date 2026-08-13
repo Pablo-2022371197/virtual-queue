@@ -64,10 +64,18 @@ class WearTicketListener {
       estimatedMinutes: payload.estimatedMinutes,
       status: status,
       counterNumber: payload.counterNumber,
-      issuedAt: current.issuedAt,
+      counterLabel: payload.counterLabel,
+      issuedAt: payload.issuedAt ?? current.issuedAt,
     );
 
-    if (status == TicketStatus.nearly || status == TicketStatus.called) {
+    if (status == TicketStatus.called || status == TicketStatus.serving) {
+      final label = payload.counterLabel ??
+          (payload.counterNumber != null
+              ? String.fromCharCode(64 + payload.counterNumber!)
+              : null);
+      final counterText = label != null ? ' Dirígete a la caja $label.' : '';
+      notifier.markAlert('¡Es tu turno!$counterText');
+    } else if (status == TicketStatus.nearly) {
       final label = payload.counterLabel ??
           (payload.counterNumber != null
               ? String.fromCharCode(64 + payload.counterNumber!)
@@ -112,6 +120,7 @@ class WearTicketController {
         estimatedMinutes: ticket.estimatedMinutes,
         status: ticket.status,
         counterNumber: ticket.counterNumber,
+        counterLabel: ticket.counterLabel,
         issuedAt: ticket.issuedAt,
       );
     } on ApiException catch (error) {

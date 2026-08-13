@@ -1,21 +1,27 @@
 import { Link, Navigate } from 'react-router-dom'
 import { Alert, Button, Card, Chip, Separator, Spinner } from '@heroui/react'
 import { CalendarClock, Clock, MapPin, Ticket } from 'lucide-react'
+import { useState } from 'react'
 import { useMyTicket, useCancelTicket } from '../hooks/useMyTicket'
 import { TicketStatusChip } from '../features/tickets/TicketStatusChip'
 import { ConnectionStatus } from '../shared/components/ConnectionStatus'
 import { formatDateTime } from '../shared/format/datetime'
 import { counterLabel } from '../shared/format/counterLabel'
+import { useToastOnError } from '../shared/hooks/useToastOnError'
+import { toastFromError } from '../shared/toast/appToast'
 import { useQueueSocket } from '../shared/realtime/useQueueSocket'
 import { useAuth } from '../features/auth/useAuth'
-import { useState } from 'react'
 
 export default function HomePage() {
   const { hasRole } = useAuth()
-  const { data: ticket, isLoading, isError } = useMyTicket()
+  const { data: ticket, isLoading, isError, error } = useMyTicket()
   const cancelMutation = useCancelTicket()
   const { connected } = useQueueSocket()
   const [showConfirm, setShowConfirm] = useState(false)
+
+  useToastOnError(isError, error, {
+    fallback: 'No se pudo obtener tu turno. Verifica que el servidor esté en línea.',
+  })
 
   if (hasRole('STAFF') && !hasRole('ADMIN')) {
     return <Navigate to="/staff" replace />
@@ -23,8 +29,12 @@ export default function HomePage() {
 
   async function handleCancel() {
     if (!ticket) return
-    await cancelMutation.mutateAsync(ticket.id)
-    setShowConfirm(false)
+    try {
+      await cancelMutation.mutateAsync(ticket.id)
+      setShowConfirm(false)
+    } catch (err) {
+      toastFromError(err, 'No se pudo cancelar el turno. Intenta de nuevo.')
+    }
   }
 
   return (
@@ -50,11 +60,6 @@ export default function HomePage() {
         </Card>
       )}
 
-      {isError && (
-        <Alert status="warning">
-          No se pudo obtener tu turno. Verifica que el servidor esté en línea.
-        </Alert>
-      )}
 
       {!isLoading && !isError && !ticket && (
         <Card>
@@ -181,11 +186,6 @@ export default function HomePage() {
               </div>
             )}
 
-            {cancelMutation.isError && (
-              <Alert status="danger">
-                No se pudo cancelar el turno. Intenta de nuevo.
-              </Alert>
-            )}
           </Card.Content>
         </Card>
       )}

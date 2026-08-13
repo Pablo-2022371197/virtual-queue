@@ -2,7 +2,6 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import {
-  Alert,
   Button,
   Card,
   Input,
@@ -13,7 +12,7 @@ import {
 } from '@heroui/react'
 import { AuthPageShell } from './AuthPageShell'
 import { useAuth } from '../features/auth/useAuth'
-import { ApiError } from '../shared/api/client'
+import { toastFromError } from '../shared/toast/appToast'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -21,7 +20,6 @@ export default function LoginPage() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
   function homeForRole(role?: string) {
@@ -34,18 +32,13 @@ export default function LoginPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setError(null)
     setIsLoading(true)
 
     try {
       const loggedIn = await login({ username: username.trim(), password })
       navigate(homeForRole(loggedIn.role), { replace: true })
     } catch (err) {
-      const message =
-        err instanceof ApiError
-          ? err.message
-          : 'No se pudo iniciar sesión. Intenta de nuevo.'
-      setError(message)
+      toastFromError(err, 'No se pudo iniciar sesión. Intenta de nuevo.')
     } finally {
       setIsLoading(false)
     }
@@ -62,8 +55,6 @@ export default function LoginPage() {
         </Card.Header>
 
         <Card.Content className="flex flex-col gap-4">
-          {error && <Alert status="danger">{error}</Alert>}
-
           <form
             id="login-form"
             className="auth-form flex flex-col gap-4"

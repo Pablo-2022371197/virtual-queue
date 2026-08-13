@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { apiLogin, apiLogout, apiMe, apiRefresh, apiRegister } from '../../shared/api/auth'
+import { releaseStaffCounter } from '../../shared/api/staff'
 import { clearTokens, hasRefreshToken } from '../../shared/api/tokenStore'
 import { AuthContext, type AuthStatus } from './authContext'
 import type { LoginRequest, RegisterRequest, UserRole } from '../../shared/types/api'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient()
   const [status, setStatus] = useState<AuthStatus>(() =>
     hasRefreshToken() ? 'loading' : 'anonymous',
   )
@@ -48,10 +51,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const logout = useCallback(async () => {
+    // Release claimed counter while the access token is still valid.
+    if (user?.role === 'STAFF') {
+      try {
+        await releaseStaffCounter()
+      } catch {
+        // Backend logout also clears the claim as a fallback.
+      }
+    }
     await apiLogout()
+    queryClient.clear()
     setUser(null)
     setStatus('anonymous')
-  }, [])
+  }, [queryClient, user?.role])
 
   const refreshUser = useCallback(async () => {
     const me = await apiMe()
