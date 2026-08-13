@@ -6,6 +6,7 @@ import { Brand } from '@shared/brand/Brand'
 import { appVersion } from '@lib/siteConfig'
 import { UserMenu } from './UserMenu'
 import { useAuth } from '../../features/auth/useAuth'
+import { defaultAppRouteForUser } from '../../features/auth/defaultAppRoute'
 
 type NavItem = { to: string; label: string; Icon: typeof Ticket }
 
@@ -22,6 +23,7 @@ export function AppSidebar() {
   const { hasRole } = useAuth()
   const isStaff = hasRole('STAFF') && !hasRole('ADMIN')
   const isAdmin = hasRole('ADMIN')
+  const homeRoute = defaultAppRouteForUser(hasRole)
 
   const links: NavItem[] = isStaff
     ? [
@@ -30,15 +32,17 @@ export function AppSidebar() {
         { to: '/cuenta', label: 'Mi cuenta', Icon: UserCircle },
       ]
     : [
-        { to: '/home', label: 'Mi turno', Icon: Ticket },
+        // Mi turno no disponible para administradores
+        ...(!isAdmin ? [{ to: '/home', label: 'Mi turno', Icon: Ticket }] : []),
         {
           to: '/search',
-          label: isAdmin ? 'Establecimientos' : 'Establecimientos',
+          label: 'Establecimientos',
           Icon: Building2,
         },
         { to: '/estadisticas', label: 'Estadísticas', Icon: BarChart3 },
         { to: '/cuenta', label: 'Mi cuenta', Icon: UserCircle },
-        ...(isAdmin ? [{ to: '/staff', label: 'Personal', Icon: Users }] : []),
+        // Panel de personal no disponible para administradores
+        // ...(isAdmin ? [{ to: '/staff', label: 'Personal', Icon: Users }] : []),
       ]
 
   const navLinks = (onClick?: () => void) =>
@@ -64,7 +68,7 @@ export function AppSidebar() {
     <>
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-56 flex-col border-r border-border bg-surface/95 backdrop-blur-md sm:flex">
         <div className="flex h-14 shrink-0 items-center px-5">
-          <NavLink to={isStaff ? '/staff' : '/home'}>
+          <NavLink to={homeRoute}>
             <Brand />
           </NavLink>
         </div>
@@ -83,7 +87,7 @@ export function AppSidebar() {
       </aside>
 
       <header className="fixed inset-x-0 top-0 z-30 flex h-14 items-center gap-3 border-b border-border/60 bg-surface/95 px-4 backdrop-blur-md sm:hidden">
-        <NavLink to={isStaff ? '/staff' : '/home'} className="shrink-0">
+        <NavLink to={homeRoute} className="shrink-0">
           <Brand />
         </NavLink>
 

@@ -12,6 +12,7 @@ import {
 } from '@heroui/react'
 import { AuthPageShell } from './AuthPageShell'
 import { useAuth } from '../features/auth/useAuth'
+import { defaultAppRoute } from '../features/auth/defaultAppRoute'
 import { toastFromError } from '../shared/toast/appToast'
 
 export default function LoginPage() {
@@ -23,7 +24,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
 
   function homeForRole(role?: string) {
-    return role === 'STAFF' ? '/staff' : '/home'
+    return defaultAppRoute(role)
   }
 
   if (status === 'authenticated') {

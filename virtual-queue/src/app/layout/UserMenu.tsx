@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Avatar, Dropdown, Label } from '@heroui/react'
 import { BarChart3, LogOut, Ticket, UserCircle, Users } from 'lucide-react'
 import { useAuth } from '../../features/auth/useAuth'
+import { defaultAppRouteForUser } from '../../features/auth/defaultAppRoute'
 
 export function UserMenu() {
   const navigate = useNavigate()
@@ -12,7 +13,7 @@ export function UserMenu() {
   async function handleAction(key: Key) {
     switch (key) {
       case 'home':
-        navigate(hasRole('STAFF') && !hasRole('ADMIN') ? '/staff' : '/home')
+        navigate(defaultAppRouteForUser(hasRole))
         break
       case 'stats':
         navigate('/estadisticas')
@@ -62,35 +63,38 @@ export function UserMenu() {
         </div>
 
         <Dropdown.Menu onAction={handleAction}>
-          <Dropdown.Item
-            id="home"
-            textValue={hasRole('STAFF') && !hasRole('ADMIN') ? 'Panel de personal' : 'Mi turno'}
-          >
-            <div className="flex w-full items-center justify-between gap-2">
-              <Label>
-                {hasRole('STAFF') && !hasRole('ADMIN') ? 'Panel de personal' : 'Mi turno'}
-              </Label>
-              {hasRole('STAFF') && !hasRole('ADMIN') ? (
-                <Users size={14} strokeWidth={1.75} className="text-muted" />
-              ) : (
-                <Ticket size={14} strokeWidth={1.75} className="text-muted" />
-              )}
-            </div>
-          </Dropdown.Item>
+          {!hasRole('ADMIN') && (
+            <Dropdown.Item
+              id="home"
+              textValue={hasRole('STAFF') && !hasRole('ADMIN') ? 'Panel de personal' : 'Mi turno'}
+            >
+              <div className="flex w-full items-center justify-between gap-2">
+                <Label>
+                  {hasRole('STAFF') && !hasRole('ADMIN') ? 'Panel de personal' : 'Mi turno'}
+                </Label>
+                {hasRole('STAFF') && !hasRole('ADMIN') ? (
+                  <Users size={14} strokeWidth={1.75} className="text-muted" />
+                ) : (
+                  <Ticket size={14} strokeWidth={1.75} className="text-muted" />
+                )}
+              </div>
+            </Dropdown.Item>
+          )}
           <Dropdown.Item id="stats" textValue="Estadísticas">
             <div className="flex w-full items-center justify-between gap-2">
               <Label>Estadísticas</Label>
               <BarChart3 size={14} strokeWidth={1.75} className="text-muted" />
             </div>
           </Dropdown.Item>
-          {hasRole('ADMIN') && (
+          {/* Panel de personal no disponible para administradores */}
+          {/* {hasRole('ADMIN') && (
             <Dropdown.Item id="staff" textValue="Panel de personal">
               <div className="flex w-full items-center justify-between gap-2">
                 <Label>Panel de personal</Label>
                 <Users size={14} strokeWidth={1.75} className="text-muted" />
               </div>
             </Dropdown.Item>
-          )}
+          )} */}
           <Dropdown.Item id="account" textValue="Mi cuenta">
             <div className="flex w-full items-center justify-between gap-2">
               <Label>Mi cuenta</Label>

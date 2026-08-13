@@ -12,6 +12,7 @@ import { AuthPageShell } from './AuthPageShell'
 import { PrivacyConsentField } from './PrivacyConsentField'
 import { PasswordField } from '../shared/components/PasswordField'
 import { useAuth } from '../features/auth/useAuth'
+import { defaultAppRoute } from '../features/auth/defaultAppRoute'
 import {
   toastFromError,
   toastSuccess,
@@ -36,7 +37,7 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false)
 
   if (status === 'authenticated' && !success) {
-    navigate(role === 'STAFF' ? '/staff' : '/home', { replace: true })
+    navigate(defaultAppRoute(role), { replace: true })
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -84,7 +85,7 @@ export default function RegisterPage() {
       setSuccess(true)
       toastSuccess('Cuenta creada correctamente. Redirigiendo…')
       window.setTimeout(() => {
-        navigate(role === 'STAFF' ? '/staff' : '/home', { replace: true })
+        navigate(defaultAppRoute(role), { replace: true })
       }, 1200)
     } catch (err) {
       toastFromError(err, 'No se pudo completar el registro. Intenta de nuevo.')

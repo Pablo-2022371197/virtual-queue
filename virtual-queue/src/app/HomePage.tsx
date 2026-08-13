@@ -23,6 +23,10 @@ export default function HomePage() {
     fallback: 'No se pudo obtener tu turno. Verifica que el servidor esté en línea.',
   })
 
+  if (hasRole('ADMIN')) {
+    return <Navigate to="/search" replace />
+  }
+
   if (hasRole('STAFF') && !hasRole('ADMIN')) {
     return <Navigate to="/staff" replace />
   }
