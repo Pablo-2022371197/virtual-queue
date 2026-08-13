@@ -1,7 +1,7 @@
-import Fuse from 'fuse.js'
+import Fuse, { type IFuseOptions } from 'fuse.js'
 import type { Place } from '../shared/types/api'
 
-export const PLACE_FUSE_OPTIONS: Fuse.IFuseOptions<Place> = {
+export const PLACE_FUSE_OPTIONS: IFuseOptions<Place> = {
   keys: ['name', 'address', 'category'],
   threshold: 0.5,
 }
