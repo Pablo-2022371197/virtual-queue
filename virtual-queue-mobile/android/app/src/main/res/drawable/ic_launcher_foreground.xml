@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <path
+        android:pathData="M20,16h24a16,16 0,0 1,0 32H20a16,16 0,0 1,0 -32zM20,26h24a6,6 0,0 1,0 12H20a6,6 0,0 1,0 -12z"
+        android:fillType="evenOdd">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="8"
+                android:startY="14"
+                android:endX="56"
+                android:endY="50"
+                android:type="linear">
+                <item android:offset="0" android:color="#FFC77DFF"/>
+                <item android:offset="0.42" android:color="#FFAA3BFF"/>
+                <item android:offset="1" android:color="#FF6D1FD6"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Bottom gaps (cut the ribbon into three segments) -->
+    <path
+        android:pathData="M25.2,37h3.2v14h-3.2z"
+        android:fillColor="#121212"/>
+    <path
+        android:pathData="M35.6,37h3.2v14h-3.2z"
+        android:fillColor="#121212"/>
+    <path android:pathData="M43.2,17.2 L58.5,26.5 L43.2,35.8 L46.8,26.5 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="42"
+                android:startY="16"
+                android:endX="60"
+                android:endY="32"
+                android:type="linear">
+                <item android:offset="0" android:color="#FFC77DFF"/>
+                <item android:offset="1" android:color="#FF8B33E8"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>

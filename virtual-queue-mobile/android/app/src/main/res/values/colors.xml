@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#121212</color>
+    <color name="turnix_accent">#AA3BFF</color>
+    <color name="turnix_accent_deep">#6D1FD6</color>
+    <color name="turnix_accent_light">#C77DFF</color>
+</resources>

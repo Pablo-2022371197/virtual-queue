@@ -4,9 +4,10 @@
     <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
-        android:label="virtual_queue_mobile"
+        android:label="Turnix"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@drawable/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
             android:exported="true"

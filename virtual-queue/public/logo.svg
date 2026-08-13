@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 280" role="img" aria-label="Turnix — Sistema de turnos">
+  <defs>
+    <linearGradient id="turnixRibbon" x1="8" y1="14" x2="56" y2="50" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#C77DFF"/>
+      <stop offset="0.42" stop-color="#AA3BFF"/>
+      <stop offset="1" stop-color="#6D1FD6"/>
+    </linearGradient>
+    <linearGradient id="turnixArrow" x1="42" y1="16" x2="60" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#C77DFF"/>
+      <stop offset="1" stop-color="#8B33E8"/>
+    </linearGradient>
+    <mask id="turnixGaps">
+      <rect width="64" height="64" fill="#fff"/>
+      <rect x="25.2" y="37" width="3.2" height="14" rx="0.6" fill="#000"/>
+      <rect x="35.6" y="37" width="3.2" height="14" rx="0.6" fill="#000"/>
+    </mask>
+  </defs>
+  <rect width="360" height="280" rx="24" fill="#121212"/>
+  <svg x="118" y="8" width="124" height="124" viewBox="0 0 64 64">
+    <g mask="url(#turnixGaps)">
+      <path
+        fill="url(#turnixRibbon)"
+        fill-rule="evenodd"
+        d="M20 16h24a16 16 0 0 1 0 32H20a16 16 0 0 1 0-32Zm0 10h24a6 6 0 0 1 0 12H20a6 6 0 0 1 0-12Z"
+      />
+    </g>
+    <path fill="url(#turnixArrow)" d="M43.2 17.2 58.5 26.5 43.2 35.8 46.8 26.5Z"/>
+  </svg>
+  <text
+    x="180"
+    y="196"
+    text-anchor="middle"
+    font-family="Inter, Cabinet Grotesk, system-ui, sans-serif"
+    font-size="64"
+    font-weight="700"
+    letter-spacing="-1.6"
+  >
+    <tspan fill="#F4F4F5">Turn</tspan><tspan fill="#AA3BFF">ix</tspan>
+  </text>
+  <text
+    x="180"
+    y="232"
+    text-anchor="middle"
+    font-family="Inter, Geist, system-ui, sans-serif"
+    font-size="14"
+    font-weight="500"
+    letter-spacing="4.2"
+    fill="#A1A1AA"
+  >SISTEMA DE TURNOS</text>
+</svg>
+
+  <text
+    x="180"
+    y="196"
+    text-anchor="middle"
+    font-family="Inter, Cabinet Grotesk, system-ui, sans-serif"
+    font-size="64"
+    font-weight="700"
+    letter-spacing="-1.6"
+  >
+    <tspan fill="#F4F4F5">Turn</tspan><tspan fill="#AA3BFF">ix</tspan>
+  </text>
+  <text
+    x="180"
+    y="232"
+    text-anchor="middle"
+    font-family="Inter, Geist, system-ui, sans-serif"
+    font-size="14"
+    font-weight="500"
+    letter-spacing="4.2"
+    fill="#A1A1AA"
+  >SISTEMA DE TURNOS</text>
+</svg>
