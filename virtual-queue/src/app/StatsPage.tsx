@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Alert, Card, Chip, Spinner } from '@heroui/react'
-import DashboardStats from './place/DashboardStats'
 import { getExperiencedPlaces } from '../shared/api/places'
 import { usePlaceStats } from '../hooks/usePlace'
 import { usePlaceStatsSocket } from '../shared/realtime/useQueueSocket'
@@ -21,8 +20,6 @@ export default function StatsPage() {
   const { data: stats, isLoading: statsLoading } = usePlaceStats(activePlaceId)
   const { connected } = useQueueSocket()
   usePlaceStatsSocket(activePlaceId)
-
-  const selectedPlace = places.find((p) => p.id === activePlaceId)
 
   const emptyMessage = hasRole('STAFF')
     ? 'Tu usuario de personal no tiene un establecimiento asignado.'
@@ -125,19 +122,6 @@ export default function StatsPage() {
             </div>
           )}
 
-          <Card>
-            <Card.Header>
-              <Card.Title>
-                Fila en vivo — {selectedPlace?.name ?? 'Establecimiento'}
-              </Card.Title>
-              <Card.Description>
-                Widget embebido con estadísticas en tiempo real vía WebSocket.
-              </Card.Description>
-            </Card.Header>
-            <Card.Content>
-              <DashboardStats placeId={activePlaceId} />
-            </Card.Content>
-          </Card>
         </>
       )}
     </section>

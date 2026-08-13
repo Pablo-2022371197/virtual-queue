@@ -3,24 +3,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wear_plus/wear_plus.dart';
 
-import 'package:virtual_queue_mobile/features/login/loginScreen.dart';
+import 'package:virtual_queue_mobile/wear/auth/login_screen.dart';
 import 'package:virtual_queue_mobile/wear/auth/pin_screen.dart';
 import 'package:virtual_queue_mobile/wear/wear_safe_area.dart';
 
 void main() {
-  testWidgets('login screen shows username and password fields', (tester) async {
+  testWidgets('wear login screen shows sign-in action', (tester) async {
     await tester.pumpWidget(
       const ProviderScope(
         child: MaterialApp(
-          home: LoginScreen(),
+          home: WearLoginScreen(),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Usuario'), findsOneWidget);
-    expect(find.text('Contraseña'), findsOneWidget);
     expect(find.text('Iniciar sesión'), findsOneWidget);
+    expect(find.text('Usuario o correo'), findsOneWidget);
   });
 
   testWidgets('wear pin screen shows keypad and skip', (tester) async {

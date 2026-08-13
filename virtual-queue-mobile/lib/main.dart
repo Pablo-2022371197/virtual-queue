@@ -3,54 +3,57 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/auth/auth_service.dart';
 import 'core/config/app_config.dart';
-import 'core/notifications/fcm_service.dart';
-import 'router/mobile_router.dart';
+import 'router/wear_router.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   AppConfig.init();
-  await FcmService.registerBackgroundHandler();
 
   runApp(
     const ProviderScope(
-      child: VirtualQueueApp(),
+      child: WearApp(),
     ),
   );
 }
 
-class VirtualQueueApp extends ConsumerStatefulWidget {
-  const VirtualQueueApp({super.key});
+class WearApp extends ConsumerStatefulWidget {
+  const WearApp({super.key});
 
   @override
-  ConsumerState<VirtualQueueApp> createState() => _VirtualQueueAppState();
+  ConsumerState<WearApp> createState() => _WearAppState();
 }
 
-class _VirtualQueueAppState extends ConsumerState<VirtualQueueApp> {
+class _WearAppState extends ConsumerState<WearApp> {
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await ref.read(authStateProvider.notifier).bootstrap();
-      await ref.read(fcmServiceProvider).init();
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final router = ref.watch(mobileRouterProvider);
     final auth = ref.watch(authStateProvider);
+    final router = ref.watch(wearRouterProvider);
 
     if (auth.status == AuthStatus.loading) {
       return const MaterialApp(
+        debugShowCheckedModeBanner: false,
         home: Scaffold(
-          body: Center(child: CircularProgressIndicator()),
+          backgroundColor: Colors.black,
+          body: Center(child: CircularProgressIndicator(color: Colors.white)),
         ),
       );
     }
 
     return MaterialApp.router(
-      title: 'Virtual Queue',
+      debugShowCheckedModeBanner: false,
       routerConfig: router,
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: Colors.black,
+      ),
     );
   }
 }

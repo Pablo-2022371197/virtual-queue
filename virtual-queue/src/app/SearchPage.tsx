@@ -4,11 +4,25 @@ import { useSearchPlaces } from '../hooks/useSearchPlaces'
 import { useToastOnError } from '../shared/hooks/useToastOnError'
 
 export default function SearchPage() {
-  const { results, isLoading, isError, error, query, setQuery } = useSearchPlaces()
+  const {
+    results,
+    isLoading,
+    isError,
+    error,
+    query,
+    setQuery,
+    catalogLoaded,
+    catalogEmpty,
+  } = useSearchPlaces()
 
   useToastOnError(isError, error, {
     fallback: 'No se pudieron cargar los establecimientos.',
   })
+
+  const showNoMatches =
+    catalogLoaded && !catalogEmpty && results.length === 0 && query.length >= 2
+
+  const showEmptyCatalog = catalogLoaded && catalogEmpty
 
   return (
     <section className="flex flex-col gap-6">
@@ -36,7 +50,15 @@ export default function SearchPage() {
         </div>
       )}
 
-      {!isLoading && !isError && results.length === 0 && query.length >= 2 && (
+      {showEmptyCatalog && (
+        <Card variant="secondary">
+          <Card.Content className="py-12 text-center text-sm text-muted">
+            No hay establecimientos registrados por el momento.
+          </Card.Content>
+        </Card>
+      )}
+
+      {showNoMatches && (
         <Card variant="secondary">
           <Card.Content className="py-12 text-center text-sm text-muted">
             No se encontraron resultados para{' '}

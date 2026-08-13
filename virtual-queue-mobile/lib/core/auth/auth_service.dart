@@ -176,15 +176,12 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
       return;
     }
 
-    final mobileHasPin = await PinStorage.hasPin(scope: PinScope.mobile);
     final wearHasPin = await PinStorage.hasPin(
       scope: PinScope.wear,
       userId: user.id,
     );
     state = AuthState(
-      status: mobileHasPin || wearHasPin
-          ? AuthStatus.locked
-          : AuthStatus.authenticated,
+      status: wearHasPin ? AuthStatus.locked : AuthStatus.authenticated,
       user: user,
     );
   }

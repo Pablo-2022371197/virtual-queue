@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Alert, Button, Card, Spinner } from '@heroui/react'
 import { Clock, Users } from 'lucide-react'
-import DashboardStats from './DashboardStats'
 import { usePlace, usePlaceQueue, usePlaceStats } from '../../hooks/usePlace'
 import { useMyTicket, useTakeTicket } from '../../hooks/useMyTicket'
 import { ConnectionStatus } from '../../shared/components/ConnectionStatus'
@@ -134,15 +133,13 @@ export default function PlaceQueuePage() {
               : 'Información actualizada del establecimiento.'}
           </Card.Description>
         </Card.Header>
-        <Card.Content>
-          {canViewStats ? (
-            <DashboardStats placeId={placeId} />
-          ) : (
+        {!canViewStats && (
+          <Card.Content>
             <Alert status="accent">
               Las estadísticas en vivo se habilitan después de tomar un turno aquí.
             </Alert>
-          )}
-        </Card.Content>
+          </Card.Content>
+        )}
         <Card.Footer className="flex-col gap-3">
           {!canTakeTicket ? (
             <Alert status="warning">

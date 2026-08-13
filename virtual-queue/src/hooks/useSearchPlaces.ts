@@ -1,24 +1,31 @@
-import { useState } from 'react'
-import { usePlaces } from './usePlaces'
+import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { searchPlaces } from '../shared/api/places'
+import { createPlaceFuse, fuseSearchPlaces } from '../lib/fuseSearchPlaces'
 
 export function useSearchPlaces() {
   const [query, setQuery] = useState('')
-  const [category, setCategory] = useState<string | undefined>()
 
-  const placesQuery = usePlaces({
-    query: query.length >= 2 ? query : undefined,
-    category,
-    size: 20,
+  const placesQuery = useQuery({
+    queryKey: ['places', 'catalog'],
+    queryFn: () => searchPlaces({ size: 100 }),
   })
 
-  const results = placesQuery.data?.content ?? []
+  const catalog = placesQuery.data?.content ?? []
+
+  const fuse = useMemo(() => createPlaceFuse(catalog), [catalog])
+
+  const results = useMemo(
+    () => fuseSearchPlaces(fuse, catalog, query),
+    [fuse, catalog, query],
+  )
 
   return {
     ...placesQuery,
     query,
     setQuery,
-    category,
-    setCategory,
     results,
+    catalogLoaded: !placesQuery.isLoading && !placesQuery.isError,
+    catalogEmpty: catalog.length === 0,
   }
 }

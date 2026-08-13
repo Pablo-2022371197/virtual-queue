@@ -1,116 +1,54 @@
-# Virtual Queue Mobile
+# Virtual Queue Wear OS
 
-Cliente móvil y Wear OS del sistema **Virtual Queue**. Permite a los usuarios consultar su turno, recibir notificaciones push (FCM) y sincronizar el estado de la fila con un smartwatch Android emparejado.
-
-Además, este repositorio incluye un **entry point web** (`main_stats.dart`) que se compila como widget embebido en el dashboard React.
+Cliente **Wear OS standalone** del sistema **Virtual Queue**. Permite iniciar sesión en el reloj, consultar el turno activo y recibir actualizaciones en tiempo real vía REST y WebSocket STOMP.
 
 ## Rol en el ecosistema
 
 ```
-                    ┌─────────────────────────┐
-                    │   virtual-queue-back    │
-                    │  REST · WebSocket · FCM │
-                    └───────────┬─────────────┘
-                                │
-         ┌──────────────────────┼──────────────────────┐
-         │                      │                      │
-         ▼                      ▼                      ▼
-┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐
-│  App Android    │   │  Wear OS app    │   │  Flutter Web    │
-│  (main.dart)    │   │ (main_wear.dart)│   │ (main_stats.dart)│
-│  FCM + STOMP    │──►│  Muestra turno  │   │ iframe en React │
-└─────────────────┘   └─────────────────┘   └─────────────────┘
+┌─────────────────────────┐
+│   virtual-queue-back    │
+│  REST · WebSocket STOMP │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│  virtual-queue-mobile   │
+│  (Wear OS standalone)   │
+└─────────────────────────┘
 ```
 
-| Entry point | Plataforma | Propósito |
-|-------------|------------|-----------|
-| `lib/main.dart` | Android | App principal: login, turno, búsqueda |
-| `lib/main_wear.dart` | Wear OS | Reloj: número de turno, posición y tiempo estimado |
-| `lib/main_stats.dart` | Web | Widget de estadísticas embebido en `virtual-queue` |
+El front web (`virtual-queue`) y el backend (`virtual-queue-back`) se despliegan por separado. Este proyecto es la app del smartwatch que se revisa en simulador o dispositivo Wear OS.
 
 ## Stack tecnológico
 
 | Tecnología | Uso |
 |------------|-----|
-| Flutter 3.5+ | UI multiplataforma |
+| Flutter 3.5+ | UI Wear OS |
 | Riverpod | Estado y providers |
 | go_router | Navegación y guards de autenticación |
 | Dio | Cliente HTTP con interceptor JWT |
 | stomp_dart_client | WebSocket STOMP para fila en vivo |
-| Firebase Messaging | Notificaciones push |
-| flutter_local_notifications | Alertas en primer plano (Android) |
-| wear_plus | UI adaptada a reloj |
-| flutter_wear_os_connectivity | Sincronización teléfono ↔ wearable |
+| wear_plus | UI adaptada a pantalla redonda/cuadrada |
 | flutter_secure_storage | Persistencia del token JWT |
 
 ## Funcionamiento
 
-### App Android (`main.dart`)
+1. **Login** (`WearLoginScreen`): autentica contra `POST /api/auth/login` con RemoteInput de Wear OS.
+2. **PIN opcional** (`PinScreen`): protege la sesión en el reloj.
+3. **Turno** (`TurnoWearWidget`): muestra número de turno, posición, tiempo estimado y alertas de llamado.
+4. **Tiempo real** (`WearTicketListener`): STOMP sobre `/user/queue/ticket` con polling de respaldo cada 8 s.
 
-1. **Inicio de sesión** (`LoginScreen`): autentica contra `POST /api/auth/login` y guarda el JWT en almacenamiento seguro.
-2. **Home** (`HomeScreen`): consulta el turno activo y arranca el `QueueListenerService`.
-3. **Búsqueda** (`SearchScreen`): navega a establecimientos y sus filas.
-4. **Fila del establecimiento** (`PlaceQueueScreen`): vista del estado de un lugar concreto.
-
-El router redirige a `/login` si no hay token y evita volver al login cuando ya hay sesión.
-
-### Notificaciones FCM (`FcmService`)
-
-Al iniciar la app:
-
-1. Solicita permisos de notificación.
-2. Obtiene el token FCM del dispositivo.
-3. Lo registra en el backend con `POST /api/devices/register`.
-4. Muestra notificaciones locales cuando llega un mensaje en primer plano.
-
-### Tiempo real y wearable (`QueueListenerService`)
-
-Cuando el usuario tiene sesión, el servicio:
-
-1. Conecta STOMP a `{API_URL}/ws` con header `Authorization: Bearer {jwt}`.
-2. Se suscribe a `/topic/queue/my-ticket`.
-3. Ante cada actualización:
-   - Actualiza el estado local (`queuePositionProvider`).
-   - Sincroniza datos al reloj vía `WearableService.syncQueueStatus`.
-   - Si la posición es menor a 3, envía una alerta al wearable.
-4. Si el turno se cancela o completa, limpia el estado en teléfono y reloj.
-
-### App Wear OS (`main_wear.dart`)
-
-Muestra en pantalla redonda o rectangular:
-
-- Número de turno
-- Posición en la fila
-- Tiempo estimado de espera
-
-Los datos llegan desde el teléfono emparejado mediante `flutter_wear_os_connectivity`. Soporta modo ambient (pantalla always-on).
-
-### Widget web de estadísticas (`main_stats.dart`)
-
-Pensado para ejecutarse dentro de un iframe en el dashboard React:
-
-1. Lee `placeId` de la query string (`?placeId=demo`).
-2. Conecta STOMP a `/topic/stats/{placeId}`.
-3. Renderiza métricas: turnos activos, tiempo promedio y ventanillas abiertas.
-4. Si `turnCalled == true`, envía `postMessage` al padre con `{ type: 'TURN_CALLED', payload }`.
+La app es **standalone** (`com.google.android.wearable.standalone=true`): no depende de un teléfono emparejado.
 
 ## Requisitos previos
 
 - Flutter SDK >= 3.5.0
-- Android Studio / SDK para compilar Android y Wear OS
+- Android Studio con emulador Wear OS o reloj físico
 - Backend en ejecución (`virtual-queue-back`)
-- Proyecto Firebase configurado (`google-services.json` en Android)
 
 ## Configuración
 
 La URL del API se define en tiempo de compilación:
-
-```bash
-# Valor por defecto: http://localhost:8080
-flutter run --dart-define=API_URL=http://localhost:8080
-```
-
-Para emulador Android apuntando al host local:
 
 ```bash
 flutter run --dart-define=API_URL=http://10.0.2.2:8080
@@ -118,60 +56,33 @@ flutter run --dart-define=API_URL=http://10.0.2.2:8080
 
 ## Cómo ejecutar
 
-### App Android
-
 ```bash
 flutter pub get
 flutter run
 ```
 
-### Wear OS
-
-```bash
-flutter run -t lib/main_wear.dart
-```
-
-### Widget web (para embeber en React)
-
-```powershell
-cd virtual-queue-mobile
-flutter build web --release --web-renderer canvaskit -t lib/main_stats.dart
-Copy-Item -Path build/web/* -Destination ../virtual-queue-back/src/main/resources/static/flutter/ -Recurse -Force
-```
-
-El dashboard React carga el bundle en `/flutter/?placeId={placeId}`.
+En emulador Wear OS, `10.0.2.2` apunta al host local donde corre el backend.
 
 ## Estructura del proyecto
 
 ```
 lib/
-├── main.dart                    # App Android
-├── main_wear.dart               # App Wear OS
-├── main_stats.dart              # Widget web embebido
-├── router/
-│   └── goRouterConfig.dart      # Rutas y redirect por JWT
-├── features/
-│   ├── home/homeScreen.dart
-│   ├── login/loginScreen.dart
-│   ├── search/searchScreen.dart
-│   ├── place/placeQueueScreen.dart
-│   └── wearable/wearableService.dart
-├── core/
-│   ├── http/dioClient.dart      # Dio + interceptor JWT
-│   ├── websocket/stompService.dart
-│   ├── notifications/fcmService.dart
-│   └── storage/tokenStorage.dart
-├── services/
-│   └── queueListenerService.dart
-├── providers/
-│   ├── activeTicketProvider.dart
-│   └── queuePositionProvider.dart
-├── dashboard/
-│   └── statswidget.dart         # UI del widget web
+├── main.dart
+├── router/wear_router.dart
 ├── wear/
-│   └── turnoWearWidget.dart     # UI del reloj
+│   ├── turnoWearWidget.dart
+│   ├── wear_safe_area.dart
+│   └── auth/
+├── providers/
+│   ├── wear_queue_provider.dart
+│   └── wear_ticket_provider.dart
+├── features/tickets/ticket_repository.dart
+├── core/
+│   ├── auth/auth_service.dart
+│   ├── http/dio_client.dart
+│   ├── realtime/stomp_service.dart
+│   └── storage/token_storage.dart
 └── models/
-    └── ticket.dart
 ```
 
 ## Endpoints consumidos
@@ -180,28 +91,5 @@ lib/
 |--------|------|-----|
 | `POST` | `/api/auth/login` | Autenticación |
 | `GET` | `/api/tickets/mine` | Turno activo |
-| `POST` | `/api/devices/register` | Registro de token FCM |
-| WebSocket | `/ws` → `/topic/queue/my-ticket` | Actualizaciones del turno |
-| WebSocket | `/ws` → `/topic/stats/{placeId}` | Estadísticas (solo widget web) |
-
-> Varios endpoints dependen de implementaciones pendientes en el backend.
-
-## Flujo de datos al wearable
-
-```
-Backend (STOMP)
-      │
-      ▼
-QueueListenerService (teléfono)
-      │
-      ├──► queuePositionProvider (estado local)
-      │
-      └──► WearableService
-                │
-                ├── syncData → /queue/status (posición, turno, minutos)
-                ├── sendMessage → /queue/alert (aviso de turno próximo)
-                └── removeData (turno completado/cancelado)
-                          │
-                          ▼
-                   TurnoWearWidget (reloj)
-```
+| `DELETE` | `/api/tickets/{id}` | Cancelar turno |
+| WebSocket | `/ws` → `/user/queue/ticket` | Actualizaciones del turno |

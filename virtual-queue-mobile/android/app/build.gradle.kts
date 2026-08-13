@@ -1,7 +1,6 @@
 plugins {
     id("com.android.application")
     id("dev.flutter.flutter-gradle-plugin")
-    id("com.google.gms.google-services")
 }
 
 android {
@@ -15,20 +14,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    flavorDimensions += "app"
-    productFlavors {
-        create("mobile") {
-            dimension = "app"
-        }
-        create("wear") {
-            dimension = "app"
-            minSdk = 25
-        }
-    }
-
     defaultConfig {
         applicationId = "com.queueSystem.virtualqueue"
-        minSdk = maxOf(flutter.minSdkVersion, 23)
+        minSdk = 25
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
