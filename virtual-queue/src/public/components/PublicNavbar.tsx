@@ -12,7 +12,7 @@ export function PublicNavbar() {
 
   return (
     <header
-      className="fixed inset-x-0 top-0 z-30"
+      className="fixed inset-x-0 top-0 z-30 backdrop-blur-lg from-black to-transparent bg-linear-to-b"
       style={{
         display: 'flex',
         justifyContent: 'space-between',

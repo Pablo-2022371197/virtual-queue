@@ -31,7 +31,7 @@ import { toastFromError } from '../../shared/toast/appToast'
 import { counterLabel } from '../../shared/format/counterLabel'
 import type { CounterLabelMode, Ticket, TicketStatus } from '../../shared/types/api'
 
-const STATUS_FILTERS: TicketStatus[] = ['WAITING', 'NEARLY', 'CALLED', 'SERVING']
+const STATUS_FILTERS: TicketStatus[] = ['WAITING', 'SERVING']
 
 const STATUS_FILTER_LABELS: Record<TicketStatus, string> = {
   WAITING: 'En espera',
@@ -168,7 +168,16 @@ export default function StaffQueuePage() {
 
   const { data: tickets = [], isLoading: ticketsLoading } = useQuery({
     queryKey: ['staff', 'queue', queue?.id, statusFilter],
-    queryFn: () => listQueueTickets(queue!.id, statusFilter),
+    queryFn: async () => {
+      if (statusFilter === 'WAITING') {
+        const [waiting, nearly] = await Promise.all([
+          listQueueTickets(queue!.id, 'WAITING'),
+          listQueueTickets(queue!.id, 'NEARLY'),
+        ])
+        return [...waiting, ...nearly].sort((a, b) => a.position - b.position)
+      }
+      return listQueueTickets(queue!.id, statusFilter)
+    },
     enabled: queueReady,
     refetchInterval: 10_000,
   })
@@ -392,7 +401,9 @@ export default function StaffQueuePage() {
                     </Chip>
                   )}
                 </div>
-                <TicketStatusChip status={ticket.status} />
+                {(statusFilter !== 'WAITING' || ticket.status === 'NEARLY') && (
+                  <TicketStatusChip status={ticket.status} />
+                )}
                 {canOperate && ticket.status === 'SERVING' && (
                   <div className="flex flex-wrap gap-2">
                     <Button
@@ -418,7 +429,9 @@ export default function StaffQueuePage() {
           )
         })}
         {!ticketsLoading && !needsClaim && listTickets.length === 0 && (
-          <Alert status="accent">No hay turnos con estado {statusFilter}.</Alert>
+          <Alert status="accent">
+            No hay turnos con estado {STATUS_FILTER_LABELS[statusFilter]}.
+          </Alert>
         )}
       </div>
 
