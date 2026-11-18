@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -58,6 +59,19 @@ public class GlobalExceptionHandler {
 		ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Invalid request parameter");
 		detail.setProperty("code", ErrorCode.VALIDATION_ERROR.name());
 		return ResponseEntity.badRequest().body(detail);
+	}
+
+	@ExceptionHandler(DataIntegrityViolationException.class)
+	public ResponseEntity<ProblemDetail> handleDataIntegrity(DataIntegrityViolationException ex) {
+		String message = ex.getMessage() != null && ex.getMessage().contains("idx_tickets_user_active")
+				? "User already has an active ticket"
+				: "Data conflict";
+		ErrorCode code = ex.getMessage() != null && ex.getMessage().contains("idx_tickets_user_active")
+				? ErrorCode.ACTIVE_TICKET_EXISTS
+				: ErrorCode.CONFLICT;
+		ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, message);
+		detail.setProperty("code", code.name());
+		return ResponseEntity.status(HttpStatus.CONFLICT).body(detail);
 	}
 
 	@ExceptionHandler(Exception.class)
