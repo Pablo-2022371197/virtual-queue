@@ -1,0 +1,24 @@
+name: virtual_queue_core
+description: Núcleo compartido Virtual Queue (HTTP, auth, STOMP, modelos).
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+  flutter: '>=3.5.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  dio: ^5.7.0
+  stomp_dart_client: ^3.0.1
+  flutter_riverpod: ^2.6.0
+  flutter_secure_storage: ^9.2.4
+  uuid: ^4.5.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:

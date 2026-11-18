@@ -8,37 +8,36 @@ on:
 jobs:
   flutter-core:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: packages/virtual_queue_core
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
-      - run: flutter pub get
-      - run: flutter test
+      - name: Install dependencies
+        working-directory: packages/virtual_queue_core
+        run: flutter pub get
+      - name: Run tests
+        working-directory: packages/virtual_queue_core
+        run: flutter test
 
   flutter-phone:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: virtual_queue_phone
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
-      - run: flutter pub get
-      - run: flutter test
+      - name: Install dependencies
+        working-directory: virtual_queue_phone
+        run: flutter pub get
+      - name: Run tests
+        working-directory: virtual_queue_phone
+        run: flutter test
 
   backend:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: virtual-queue-back
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -47,7 +46,8 @@ jobs:
           java-version: '21'
           cache: maven
       - name: Run Maven tests
-        run: ./mvnw -B test
+        working-directory: virtual-queue-back
+        run: sh ./mvnw -B test
       - name: Upload Surefire reports on failure
         if: failure()
         uses: actions/upload-artifact@v4

@@ -1,0 +1,20 @@
+library virtual_queue_core;
+
+export 'config/app_config.dart';
+export 'errors/api_exception.dart';
+export 'format/counter_label.dart';
+export 'format/datetime.dart';
+export 'storage/token_storage.dart';
+export 'http/dio_client.dart';
+export 'auth/auth_service.dart';
+export 'auth/auth_state.dart';
+export 'realtime/stomp_service.dart';
+export 'health/backend_health.dart';
+export 'models/auth_response.dart';
+export 'models/user_summary.dart';
+export 'models/ticket.dart';
+export 'models/ticket_event.dart';
+export 'models/place.dart';
+export 'models/page.dart';
+export 'features/tickets/ticket_repository.dart';
+export 'features/places/place_repository.dart';
