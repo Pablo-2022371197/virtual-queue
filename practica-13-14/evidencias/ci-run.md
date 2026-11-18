@@ -21,6 +21,6 @@ Repositorio: https://github.com/Pablo-2022371197/virtual-queue
 Después de `git push origin main`, abrir **Actions** y verificar los tres jobs en verde.
 
 - **AUT-07:** primer workflow run con tests + CI nuevos
-- **AUT-08:** segundo push (entregables `practica-13-14` / PDF) vuelve a disparar el mismo pipeline
+- **AUT-08:** segundo push (commit `ci-run.md` actualizado) vuelve a disparar el mismo pipeline
 
 URL directa: https://github.com/Pablo-2022371197/virtual-queue/actions/workflows/ci.yml
